@@ -48,7 +48,7 @@ const TBR_CONFIG = {
 
   HEADER_ROW: [
     "Fin Year", "Month", "Bill Type", "Bill No", "DDO Code",
-    "Department", "Net Amount", "MJH", "SMJH", "MIH", "SBHLH", "SHLH", "VOH", "SOH"
+    "Department", "Gross Amount", "MJH", "SMJH", "MIH", "SBHLH", "SHLH", "VOH", "SOH"
   ],
 
   // --- Financial Year Months (April → March) ---
