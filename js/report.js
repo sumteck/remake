@@ -1,5 +1,5 @@
 /**
- * report.js (Excel Style Clean Version - Exact Match with 5-26.xls Print)
+ * report.js (Excel Style Clean Version - With Progressive Totals)
  * =====================================
  */
 
@@ -70,7 +70,7 @@ const TbrReport = (() => {
   const _col = (row, colKey) => row[C[colKey]] || "";
   const _colNum = (row, colKey) => parseFloat(row[C[colKey]]) || 0;
 
-  // ── Excel Style Bill Details Table (No Scrollbar Fix) ──
+  // ── Excel Style Bill Details Table (With Progressive Rows) ──
   function _renderBillDetails(rows) {
     const tbody = $("bill-details-tbody");
     if (!tbody) return;
@@ -84,19 +84,18 @@ const TbrReport = (() => {
     }
 
     const totals = {
-      pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0,
-      otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0,
-      grossAmount: 0
+      grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0,
+      otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0
     };
     
     const colMap = {
-      pay: "PAY", da: "DA", hra: "HRA", cca: "CCA",
+      grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA",
       pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE",
       otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY",
-      dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR",
-      grossAmount: "GROSS_AMOUNT"
+      dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
     };
 
+    // Render Individual Bill Rows
     rows.forEach((row, i) => {
       Object.keys(totals).forEach(k => { totals[k] += _colNum(row, colMap[k]); });
 
@@ -123,38 +122,68 @@ const TbrReport = (() => {
       tbody.appendChild(tr);
     });
 
-    // Excel Total Row
-    const trTotal = document.createElement("tr");
-    trTotal.className = "font-bold bg-gray-100 text-black";
-    trTotal.innerHTML = `
-      <td class="p-1 border border-black text-right uppercase" colspan="3">Total Expenditure</td>
-      <td class="p-1 border border-black text-right">₹ ${_fmt(totals.grossAmount)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.pay)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.da)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.hra)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.cca)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.pgAllowance)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.ruralAllowance)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.otherAllowance)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.consolidatePay)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.dailyWages)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.ms)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.tourTa)}</td>
-      <td class="p-1 border border-black text-right">${_fmt(totals.mr)}</td>
-      <td class="p-1 border border-black"></td>
-    `;
-    tbody.appendChild(trTotal);
+    const keys = ["grossAmount", "pay", "da", "hra", "cca", "pgAllowance", "ruralAllowance", "otherAllowance", "consolidatePay", "dailyWages", "ms", "tourTa", "mr"];
+
+    // 1. EXPENDITURE DURING THIS MONTH
+    const trCurrent = document.createElement("tr");
+    trCurrent.className = "font-bold text-black bg-white";
+    let htmlCurrent = `<td class="p-1 border border-black text-center uppercase" colspan="3">EXPENDITURE DURING THIS MONTH</td>`;
+    keys.forEach(k => { htmlCurrent += `<td class="p-1 border border-black text-right">${_fmt(totals[k])}</td>`; });
+    htmlCurrent += `<td class="p-1 border border-black"></td>`;
+    trCurrent.innerHTML = htmlCurrent;
+    tbody.appendChild(trCurrent);
+
+    // 2. EXPENDITURE UP TO THE PREVIOUS MONTH (Editable)
+    const trPrev = document.createElement("tr");
+    trPrev.className = "font-bold text-black bg-white";
+    let htmlPrev = `<td class="p-1 border border-black text-center uppercase" colspan="3">EXPENDITURE UP TO THE PREVIOUS MONTH</td>`;
+    keys.forEach(k => { 
+      htmlPrev += `<td class="p-1 border border-black text-right outline-none focus:bg-yellow-100 prev-month-cell" contenteditable="true" data-key="${k}" title="Click to enter previous month amount">0.00</td>`; 
+    });
+    htmlPrev += `<td class="p-1 border border-black"></td>`;
+    trPrev.innerHTML = htmlPrev;
+    tbody.appendChild(trPrev);
+
+    // 3. PROGRESSIVE TOTAL (Auto Calculated)
+    const trProg = document.createElement("tr");
+    trProg.className = "font-bold text-black bg-gray-100";
+    let htmlProg = `<td class="p-1 border border-black text-center uppercase" colspan="3">PROGRESSIVE TOTAL</td>`;
+    keys.forEach(k => { 
+      htmlProg += `<td class="p-1 border border-black text-right" id="prog-${k}">${_fmt(totals[k])}</td>`; 
+    });
+    htmlProg += `<td class="p-1 border border-black"></td>`;
+    trProg.innerHTML = htmlProg;
+    tbody.appendChild(trProg);
+
+    // Dynamic Calculation Logic for Progressive Total
+    const prevCells = tbody.querySelectorAll('.prev-month-cell');
+    prevCells.forEach(cell => {
+      // Auto select text on click for easy typing
+      cell.addEventListener('focus', () => {
+         setTimeout(() => { document.execCommand('selectAll', false, null); }, 0);
+      });
+      
+      // Calculate total on typing
+      cell.addEventListener('input', (e) => {
+        const key = e.target.getAttribute('data-key');
+        let textVal = e.target.textContent.replace(/[^0-9.-]+/g,""); // Remove commas for calculation
+        let prevVal = parseFloat(textVal) || 0;
+        let currentVal = totals[key] || 0;
+        let progTotal = currentVal + prevVal;
+        
+        const progCell = $("prog-" + key);
+        if (progCell) progCell.textContent = _fmt(progTotal);
+      });
+    });
   }
 
   function _renderReportHeader(finYear, month, rows) {
     const headingEl = $("report-period-heading");
     if (headingEl) headingEl.textContent = `Reconciliation Statement — ${month} — FY ${finYear}`;
     
-    // Excel Header Fillers
     const dateEl = $("print-month-year");
     if (dateEl) dateEl.textContent = `${month} ${finYear}`;
     
-    // Auto-fill treasury from data if available
     const trsyEl = $("print-treasury");
     if (trsyEl && rows && rows.length > 0) {
       const firstTreasury = _col(rows[0], "TREASURY");
