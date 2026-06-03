@@ -1,6 +1,5 @@
 /**
- * report.js (Excel Style - Corrected Headers & Progressive Totals Only)
- * =====================================
+ * report.js
  */
 
 const TbrReport = (() => {
@@ -70,13 +69,95 @@ const TbrReport = (() => {
   const _col = (row, colKey) => row[C[colKey]] || "";
   const _colNum = (row, colKey) => parseFloat(row[C[colKey]]) || 0;
 
-  // ── Excel Style Bill Details Table ──
+  // ── 1. Render Abstract Tables (Grouped by Head of Account) ──
+  function _renderAbstractTables(rows) {
+    const container = $("abstract-tables-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (rows.length === 0) return;
+
+    const groups = {};
+    rows.forEach(r => {
+      const hoa = _col(r, "HOA") || "UNSPECIFIED HEAD OF ACCOUNT";
+      if (!groups[hoa]) {
+        groups[hoa] = {
+          grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0,
+          otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0
+        };
+      }
+      const g = groups[hoa];
+      const CMap = {
+        grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA",
+        pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE",
+        otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY",
+        dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
+      };
+      Object.keys(g).forEach(k => {
+        g[k] += _colNum(r, CMap[k]);
+      });
+    });
+
+    let html = "";
+    Object.keys(groups).forEach(hoa => {
+      const g = groups[hoa];
+      html += `
+        <div class="mb-4">
+          <div class="font-bold text-[13px] mb-1 text-black flex justify-between">
+            <div>Head of Account: <span class="underline">${hoa}</span></div>
+            <div><span contenteditable="true" class="outline-none border-b border-dashed border-gray-400 min-w-[100px] inline-block text-center focus:bg-yellow-50" title="Click to edit Plan/Non-Plan">NON-PLAN</span></div>
+          </div>
+          <table class="w-full text-center border-collapse text-[10px] md:text-[11px]" style="border: 1px solid #000;">
+            <thead class="bg-gray-100 text-black">
+              <tr>
+                <th class="p-1 border border-black font-bold">GROSS<br>AMOUNT</th>
+                <th class="p-1 border border-black font-bold">PAY</th>
+                <th class="p-1 border border-black font-bold">D.A</th>
+                <th class="p-1 border border-black font-bold">H.R.A</th>
+                <th class="p-1 border border-black font-bold">CCA</th>
+                <th class="p-1 border border-black font-bold">PG Allw</th>
+                <th class="p-1 border border-black font-bold">Rural Allw</th>
+                <th class="p-1 border border-black font-bold">Other Allw</th>
+                <th class="p-1 border border-black font-bold">Cons. Pay</th>
+                <th class="p-1 border border-black font-bold">Daily Wages</th>
+                <th class="p-1 border border-black font-bold">M&S</th>
+                <th class="p-1 border border-black font-bold">Tour T.A</th>
+                <th class="p-1 border border-black font-bold">MR</th>
+              </tr>
+            </thead>
+            <tbody class="text-black bg-white">
+              <tr>
+                <td class="p-1 border border-black font-bold text-right">${_fmt(g.grossAmount)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.pay)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.da)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.hra)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.cca)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.pgAllowance)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.ruralAllowance)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.otherAllowance)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.consolidatePay)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.dailyWages)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.ms)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.tourTa)}</td>
+                <td class="p-1 border border-black text-right">${_fmt(g.mr)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+    
+    html += `<div class="border-b-2 border-dashed border-gray-400 my-6"></div>`;
+    container.innerHTML = html;
+  }
+
+  // ── 2. Render Main Detailed Ledger Table ──
   function _renderBillDetails(rows) {
     const tbody = $("bill-details-tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
 
-    const TOTAL_COLS = 17;
+    const TOTAL_COLS = 18; // Updated for the new HOA column
 
     if (rows.length === 0) {
       tbody.innerHTML = `<tr><td colspan="${TOTAL_COLS}" class="text-center py-8 border border-black italic">No bills found for this period.</td></tr>`;
@@ -95,12 +176,12 @@ const TbrReport = (() => {
       dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
     };
 
-    // Render Individual Bill Rows
     rows.forEach((row, i) => {
       Object.keys(totals).forEach(k => { totals[k] += _colNum(row, colMap[k]); });
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td class="p-1 border border-black text-center">${_col(row, "HOA") || "—"}</td>
         <td class="p-1 border border-black text-center">${_col(row, "SPARK_CODE") || "—"}</td>
         <td class="p-1 border border-black text-center">${_col(row, "BILL_NO") || "—"}</td>
         <td class="p-1 border border-black text-center">${_col(row, "ENCASH_DATE") || "—"}</td>
@@ -127,7 +208,7 @@ const TbrReport = (() => {
     // 1. EXPENDITURE DURING THIS MONTH
     const trCurrent = document.createElement("tr");
     trCurrent.className = "font-bold text-black bg-white";
-    let htmlCurrent = `<td class="p-1 border border-black text-center uppercase" colspan="3">EXPENDITURE DURING THIS MONTH</td>`;
+    let htmlCurrent = `<td class="p-1 border border-black text-center uppercase" colspan="4">EXPENDITURE DURING THIS MONTH</td>`;
     keys.forEach(k => { htmlCurrent += `<td class="p-1 border border-black text-right">${_fmt(totals[k])}</td>`; });
     htmlCurrent += `<td class="p-1 border border-black"></td>`;
     trCurrent.innerHTML = htmlCurrent;
@@ -136,7 +217,7 @@ const TbrReport = (() => {
     // 2. EXPENDITURE UP TO THE PREVIOUS MONTH (Editable)
     const trPrev = document.createElement("tr");
     trPrev.className = "font-bold text-black bg-white";
-    let htmlPrev = `<td class="p-1 border border-black text-center uppercase" colspan="3">EXPENDITURE UP TO THE PREVIOUS MONTH</td>`;
+    let htmlPrev = `<td class="p-1 border border-black text-center uppercase" colspan="4">EXPENDITURE UP TO THE PREVIOUS MONTH</td>`;
     keys.forEach(k => { 
       htmlPrev += `<td class="p-1 border border-black text-right outline-none focus:bg-yellow-100 prev-month-cell" contenteditable="true" data-key="${k}" title="Click to enter previous month amount">0.00</td>`; 
     });
@@ -147,7 +228,7 @@ const TbrReport = (() => {
     // 3. PROGRESSIVE TOTAL (Auto Calculated)
     const trProg = document.createElement("tr");
     trProg.className = "font-bold text-black bg-gray-100";
-    let htmlProg = `<td class="p-1 border border-black text-center uppercase" colspan="3">PROGRESSIVE TOTAL</td>`;
+    let htmlProg = `<td class="p-1 border border-black text-center uppercase" colspan="4">PROGRESSIVE TOTAL</td>`;
     keys.forEach(k => { 
       htmlProg += `<td class="p-1 border border-black text-right" id="prog-${k}">${_fmt(totals[k])}</td>`; 
     });
@@ -202,6 +283,8 @@ const TbrReport = (() => {
       const currentRows = await TbrApi.fetchRowsForPeriod(finYear, month);
       
       _renderReportHeader(finYear, month, currentRows);
+      
+      _renderAbstractTables(currentRows);
       _renderBillDetails(currentRows);
 
       const reportSection = $("report-content");
