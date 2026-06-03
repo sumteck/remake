@@ -208,6 +208,8 @@ const TbrAuth = (() => {
     },
     getToken() { return (_accessToken && Date.now() < _tokenExpiry) ? _accessToken : null; },
     isSignedIn() { return !!this.getToken(); },
+    // ... (മുകളിലെ എല്ലാ കോഡുകളും ഇവിടെ വരും)
+
     bindButtons() {
       document.querySelectorAll("[data-tbr='signin-btn']").forEach(btn => btn.addEventListener("click", () => TbrAuth.signIn()));
       document.querySelectorAll("[data-tbr='signout-btn']").forEach(btn => btn.addEventListener("click", () => TbrAuth.signOut()));
