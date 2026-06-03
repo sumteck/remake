@@ -32,6 +32,6 @@ const TBR_CONFIG = {
     ENCASH_DATE: 21,
     REMARKS: 22
   },
-  FY_MONTHS: ["April", "May", "June", "July", "August", "September", "October", "November", "December", "January", "February", "March"]
-  SCOPES: "https://www.googleapis.com/auth/spreadsheets" // ഈ വരി ചേർക്കുക
+  FY_MONTHS: ["April", "May", "June", "July", "August", "September", "October", "November", "December", "January", "February", "March"],
+  SCOPES: "https://www.googleapis.com/auth/spreadsheets"
 };
