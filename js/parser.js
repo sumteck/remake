@@ -1,55 +1,5 @@
 /**
  * parser.js  (v4 — Production-hardened: template sanitisation + micro-gap merge)
- * =========
- * Client-side PDF text extraction and bill data parsing for the Remake app.
- *
- * Handles two treasury bill formats:
- * • SPARK bills  — Pay-slip style, multi-page.
- * Detection: "Net Sal" | "Gross Salary" | "Spark Code"
- * • BiMS  bills  — Head-of-Account space-separated.
- * Detection: "Net Amount"
- *
- * ── ARCHITECTURAL FIXES IN v4 ────────────────────────────────────────────────
- *
- * FIX 1 — TEMPLATE SANITISATION (glued-text bug)
- * Bill templates contain long runs of underscores (______) or dots (.....).
- * pdf.js extracts text items in DOM order, so words immediately adjacent to
- * these fill-lines get concatenated without any separator, e.g.:
- * "GAD SASTHAMKOTTABill No:Head of Account"
- * Solution: after assembling each page string, replace every run of 2+
- * underscores or dots with a single space BEFORE any regex is applied.
- * Regex: /[_.]{2,}/g  → " "
- *
- * FIX 2 — MICRO-GAP DIGIT/CHARACTER MERGE (kerning-split numbers bug)
- * pdf.js sometimes splits one rendered glyph cluster into two consecutive
- * items.  For large numbers this causes '736' + '00' instead of '73600',
- * which then shifts every column index by one.
- * Solution: during text-content assembly, compare each adjacent item pair
- * using their transform[4] (x) and transform[5] (y) coordinates.
- * If dY <= 5 px  AND  dX <= 2.5 px  → merge without inserting a space.
- * Otherwise insert a normal space as before.
- *
- * FIX 3 — ACCURATE FIELD EXTRACTORS
- * • Treasury  : full multi-word name including parenthetical code.
- * • DDO Code  : 3-part hyphenated format  (e.g. "1503-320-105").
- * • Spark Code: COMPLETE digit sequence, all groups, normalised spaces.
- * NO slicing — the full "99637 95973 95709 35547" is returned.
- * • Bill No   : standalone 8-digit token.
- * • Remarks   : "SDO Bill FOR <Month> <Year>" heading → "April 2026".
- * • Dept/Office: anchor on "GOVERNMENT OF KERALA"; next non-trivial line =
- * Department, line after that = Office Name (primary display).
- *
- * FIX 4 — SALARY BREAKDOWN (skip B Pay/L.Sal; derive otherAllowance by math)
- * Total-row number array after sanitisation:
- * [0] B Pay/L.Sal  ← SKIP (sentinel column, not a real component)
- * [1] Basic Less OA/SA  → pay
- * [2] DA  [3] HRA  [4] CCA  [5] PGA  [6] Rural Allowance
- * ...middle columns (variable count)...
- * [last] Gross Salary
- * otherAllowance = max(0, grossAmount - (pay+da+hra+cca+pgAllowance+ruralAllowance))
- * netAmount / Net Salary references fully replaced by grossAmount.
- *
- * Depends on: pdf.js (loaded via CDN in HTML)
  */
 
 const TbrParser = (() => {
@@ -171,7 +121,7 @@ const TbrParser = (() => {
   }
 
   // =========================================================================
-  // STAGE 4 — SPARK FIELD EXTRACTORS (v4 accurate versions)
+  // STAGE 4 — SPARK FIELD EXTRACTORS
   // =========================================================================
 
   function _extractTreasury(text) {
@@ -209,10 +159,7 @@ const TbrParser = (() => {
 
   function _extractSparkCode(text) {
     const m = text.match(/Spark\s*Code[\s:\-]*((?:\d{5}\s*){4})/i) || text.match(/Spark\s*Code[\s:\-]*(\d{20})/i);
-    
-    if (m) {
-      return m[1].trim().replace(/\s+/g, " ");
-    }
+    if (m) return m[1].trim().replace(/\s+/g, " ");
     return "";
   }
 
@@ -235,10 +182,7 @@ const TbrParser = (() => {
 
     const mainRegex = new RegExp(`PAY\\s+AND\\s+ALLOWANCE\\s+IN\\s+RESPECT\\s+OF\\s+(.*?(?:${MONTHS})\\s+\\d{4})`, "i");
     const match = flatText.match(mainRegex);
-    
-    if (match) {
-      return match[1].trim().replace(/\s+/g, " ");
-    }
+    if (match) return match[1].trim().replace(/\s+/g, " ");
 
     const fallbackRegex = new RegExp(`(?:([A-Za-z\\s]+)\\s+)?FOR\\s+(${MONTHS})\\s+(\\d{4})`, "i");
     const m2 = flatText.match(fallbackRegex);
@@ -252,17 +196,10 @@ const TbrParser = (() => {
 
   function _extractDeptAndOffice(page3) {
     const match = page3.match(/GOVERNMENT\s+OF\s+KERALA\s*([\s\S]*?)\s*PAY\s+AND\s+ALLOWANCE/i);
-    
     if (match) {
       let chunk = match[1].replace(/\n/g, " ").trim();
       const splitMatch = chunk.match(/([a-zA-Z\s]+?[a-z])\s+([A-Z][A-Z\s]+)/);
-      
-      if (splitMatch) {
-        return {
-          department: splitMatch[1].trim(), 
-          office: splitMatch[2].trim()      
-        };
-      }
+      if (splitMatch) return { department: splitMatch[1].trim(), office: splitMatch[2].trim() };
       return { department: chunk, office: "" };
     }
     return { department: "", office: "" };
@@ -302,9 +239,7 @@ const TbrParser = (() => {
       }
 
       if (nums.length === 0) return 0;
-      if (nums[0] === parseInt(codeStr, 10) && nums.length > 1) {
-        return nums[1];
-      }
+      if (nums[0] === parseInt(codeStr, 10) && nums.length > 1) return nums[1];
       return nums[0];
     };
 
@@ -329,7 +264,6 @@ const TbrParser = (() => {
     }
 
     const knownSum = result.pay + result.da + result.hra + result.cca + result.pgAllowance + result.ruralAllowance;
-    
     if (result.grossAmount > knownSum) {
       result.otherAllowance = result.grossAmount - knownSum;
     } else {
@@ -368,7 +302,7 @@ const TbrParser = (() => {
       billType:        "SPARK",
       billNo,
       treasury,
-      headOfAccount:   rawHoA,               // <--- NEW: Added Head of Account here
+      headOfAccount:   rawHoA,
       sparkCode,                            
       department:      department + " - " + office, 
       departmentGroup: department,           
@@ -436,23 +370,20 @@ const TbrParser = (() => {
     const bimsData = _extractBimsDetails(text);
     const gross    = _extractBimsGrossAmount(text);
 
-    const hoaMatch = text.match(/\b(\d{4})\s+(\d{2})\s+(\d{3})\s+(\d{2})\s+(\d{2})\s+(\d{2})\s+(\d{2})\b/);
+    // FIX: സ്പേസ് ഇല്ലാതെ വന്നാലും കണ്ടുപിടിക്കാൻ പാകത്തിൽ അഡ്ജസ്റ്റ് ചെയ്ത പുതിയ കോഡ്
+    const hoaMatch = text.match(/(?<!\d)(\d{4})[\s\-]*(\d{2})[\s\-]*(\d{3})[\s\-]*(\d{2})[\s\-]*(\d{2})[\s\-]*(\d{2})[\s\-]*(\d{2})(?!\d)/);
     const parts = hoaMatch ? [hoaMatch[1], hoaMatch[2], hoaMatch[3], hoaMatch[4], hoaMatch[5], hoaMatch[6], hoaMatch[7]] : null;
     const hoa = parts ? parseBimsHoA(parts.join(" ")) : null;
 
     let dept = bimsData.department ? bimsData.department.trim() : "";
     let off  = bimsData.office ? bimsData.office.trim() : "";
-    
-    let finalDepartment = dept;
-    if (off !== "") {
-      finalDepartment = dept !== "" ? (dept + " - " + off) : off;
-    }
+    let finalDepartment = dept !== "" && off !== "" ? (dept + " - " + off) : (dept || off);
 
     return {
       billType:       "BiMS",
       billNo:         "",                 
       treasury:       bimsData.treasury,  
-      headOfAccount:  parts ? parts.join("-") : "",   // <--- NEW: Added Head of Account here
+      headOfAccount:  parts ? parts.join("-") : "",   
       sparkCode:      bimsData.brn,       
       department:     finalDepartment,    
       ddoCode:        bimsData.ddoCode,
@@ -494,7 +425,6 @@ const TbrParser = (() => {
     return [parsed];
   }
 
-  // Public API
   return {
     parsePdf,
     parseAmount,
