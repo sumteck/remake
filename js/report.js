@@ -1,5 +1,6 @@
 /**
- * report.js (Excel Style - Corrected Headers & Progressive Totals)
+ * report.js (Excel Style - Corrected Headers & Progressive Totals Only)
+ * =====================================
  */
 
 const TbrReport = (() => {
@@ -69,6 +70,7 @@ const TbrReport = (() => {
   const _col = (row, colKey) => row[C[colKey]] || "";
   const _colNum = (row, colKey) => parseFloat(row[C[colKey]]) || 0;
 
+  // ── Excel Style Bill Details Table ──
   function _renderBillDetails(rows) {
     const tbody = $("bill-details-tbody");
     if (!tbody) return;
@@ -93,6 +95,7 @@ const TbrReport = (() => {
       dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
     };
 
+    // Render Individual Bill Rows
     rows.forEach((row, i) => {
       Object.keys(totals).forEach(k => { totals[k] += _colNum(row, colMap[k]); });
 
@@ -120,20 +123,6 @@ const TbrReport = (() => {
     });
 
     const keys = ["grossAmount", "pay", "da", "hra", "cca", "pgAllowance", "ruralAllowance", "otherAllowance", "consolidatePay", "dailyWages", "ms", "tourTa", "mr"];
-
-    // ── TOTAL EXPENDITURE ROW ──
-    const trTotal = document.createElement("tr");
-    trTotal.className = "font-bold bg-sky-50 text-black";
-    let htmlTotal = `<td class="p-1 border border-black text-center uppercase" colspan="3">TOTAL EXPENDITURE</td>`;
-    keys.forEach(k => { htmlTotal += `<td class="p-1 border border-black text-right">${_fmt(totals[k])}</td>`; });
-    htmlTotal += `<td class="p-1 border border-black"></td>`;
-    trTotal.innerHTML = htmlTotal;
-    tbody.appendChild(trTotal);
-
-    // Empty space row for visual separation
-    const trSpace = document.createElement("tr");
-    trSpace.innerHTML = `<td colspan="17" class="h-6 border-l border-r border-black border-t-0 border-b-0 bg-white"></td>`;
-    tbody.appendChild(trSpace);
 
     // 1. EXPENDITURE DURING THIS MONTH
     const trCurrent = document.createElement("tr");
@@ -166,6 +155,7 @@ const TbrReport = (() => {
     trProg.innerHTML = htmlProg;
     tbody.appendChild(trProg);
 
+    // Dynamic Calculation Logic for Progressive Total
     const prevCells = tbody.querySelectorAll('.prev-month-cell');
     prevCells.forEach(cell => {
       cell.addEventListener('focus', () => {
