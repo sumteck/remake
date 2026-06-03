@@ -46,16 +46,12 @@ const TbrApi = (() => {
 
   let _ensureSpreadsheetPromise = null;
 
-  /**
-   * Thread-safe gateway wrapper preventing parallel creation requests
-   */
   async function ensureSpreadsheet() {
     if (_ensureSpreadsheetPromise) return _ensureSpreadsheetPromise;
     _ensureSpreadsheetPromise = _doEnsureSpreadsheet();
     try {
       return await _ensureSpreadsheetPromise;
     } finally {
-      // Reset lock for subsequent independent state evaluations
       _ensureSpreadsheetPromise = null;
     }
   }
@@ -64,7 +60,6 @@ const TbrApi = (() => {
     let id = localStorage.getItem(TBR_CONFIG.SPREADSHEET_ID_KEY);
 
     if (id) {
-      // Verify it still exists / is accessible
       try {
         await _request(`${BASE}/${id}?fields=spreadsheetId`);
         return id;
@@ -74,16 +69,18 @@ const TbrApi = (() => {
       }
     }
 
-    // Create a fresh spreadsheet
+    // Fallback headers if creating a new sheet
+    const headerRow = TBR_CONFIG.HEADER_ROW || ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HOA", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
+
     const body = {
-      properties: { title: TBR_CONFIG.SPREADSHEET_TITLE },
+      properties: { title: TBR_CONFIG.SPREADSHEET_TITLE || "Treasury Bill Reconciliation Data" },
       sheets: [{
         properties: { title: TBR_CONFIG.SHEET_NAME },
         data: [{
           startRow: 0,
           startColumn: 0,
           rowData: [{
-            values: TBR_CONFIG.HEADER_ROW.map(v => ({ userEnteredValue: { stringValue: v } }))
+            values: headerRow.map(v => ({ userEnteredValue: { stringValue: v } }))
           }]
         }]
       }]
@@ -102,19 +99,14 @@ const TbrApi = (() => {
 
   // ── Data Retrieval ─────────────────────────────────────────────────────────
 
-  /**
-   * Fetches ALL rows from the BillData sheet (excluding header).
-   */
   async function fetchAllRows() {
     const id = await ensureSpreadsheet();
-    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A2:V`);
+    // പുതിയ കോളം വന്നതുകൊണ്ട് A2:V മാറ്റി A2:Z ആക്കി
+    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A2:Z`);
     const data = await _request(`${BASE}/${id}/values/${range}`);
     return data.values || [];
   }
 
-  /**
-   * Fetches rows filtered by financial year AND month.
-   */
   async function fetchRowsForPeriod(finYear, month) {
     const all = await fetchAllRows();
     const C = TBR_CONFIG.COLUMNS;
@@ -124,9 +116,6 @@ const TbrApi = (() => {
     );
   }
 
-  /**
-   * Fetches all rows for a given financial year (all months).
-   */
   async function fetchRowsForYear(finYear) {
     const all = await fetchAllRows();
     const C = TBR_CONFIG.COLUMNS;
@@ -137,20 +126,16 @@ const TbrApi = (() => {
 
   // ── Data Writing ───────────────────────────────────────────────────────────
 
-  /**
-   * Deletes all rows matching finYear + month, then appends fresh rows.
-   */
   async function savePeriodData(finYear, month, dataRows) {
     const id = await ensureSpreadsheet();
 
-    // 1. Read current sheet to find rows to delete
     await _deleteRowsForPeriod(id, finYear, month);
 
-    // 2. Append the new rows
     if (dataRows.length === 0) return;
 
     const values = dataRows.map(row => [finYear, month, ...row]);
-    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:V`);
+    // ഇവിടെയും പുതിയ കോളം സേവ് ചെയ്യാൻ A:V മാറ്റി A:Z ആക്കി
+    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:Z`);
 
     await _request(
       `${BASE}/${id}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
@@ -161,32 +146,26 @@ const TbrApi = (() => {
     );
   }
 
-  /**
-   * Internal: reads row indices for finYear+month and batch-deletes them.
-   * Resolves dynamic tab numeric id instead of hardcoding 0.
-   */
   async function _deleteRowsForPeriod(spreadsheetId, finYear, month) {
     const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:B`);
     const data = await _request(`${BASE}/${spreadsheetId}/values/${range}`);
     const rows = data.values || [];
 
-    // Collect 0-based sheet row indices
     const toDelete = [];
     for (let i = 1; i < rows.length; i++) {
       if (
         (rows[i][0] || "").trim() === finYear.trim() &&
         (rows[i][1] || "").trim() === month.trim()
       ) {
-        toDelete.push(i); // 0-based index
+        toDelete.push(i); 
       }
     }
 
     if (toDelete.length === 0) return;
 
-    // Build delete requests — must process from bottom to top so indices don't shift
     toDelete.sort((a, b) => b - a);
 
-    const sheetId = await _getSheetId(spreadsheetId); // Dynamic extraction fix applied here
+    const sheetId = await _getSheetId(spreadsheetId);
 
     const requests = toDelete.map(rowIdx => ({
       deleteDimension: {
