@@ -4,7 +4,7 @@
  */
 
 const TBR_CONFIG = {
-  CLIENT_ID: "833633785191-23v3t2gofgts52p5040f7d54r2dmt48d.apps.googleusercontent.com",
+  CLIENT_ID: "1062984053184-8vco89mhmk04q1516obf8i2qvshk2c1t.apps.googleusercontent.com",
   SPREADSHEET_ID: "1RjN1B-y-E2yvA9j6v2nJ8l4a2L1f9-f7v9A2_b_v3wE",
   SHEET_NAME: "BillData",
   COLUMNS: {
