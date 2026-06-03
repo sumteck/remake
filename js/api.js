@@ -27,16 +27,29 @@ const TbrApi = (() => {
   }
 
   async function ensureSpreadsheet() {
-    let id = localStorage.getItem(TBR_CONFIG.SPREADSHEET_ID_KEY);
-    if (id) return id;
+    // പുതിയ വേർഷൻ കീ (പഴയ മെമ്മറി ഒഴിവാക്കാൻ ഇത് സഹായിക്കും)
+    const key = "tbr_saved_sheet_id_v2"; 
+    let id = localStorage.getItem(key);
 
+    // ഫയൽ ഡ്രൈവിൽ ഉണ്ടോ എന്ന് കോഡ് തനിയെ പരിശോധിക്കുന്നു
+    if (id) {
+      try {
+        await _request(`${BASE}/${id}?fields=spreadsheetId`, {}, 0);
+        return id; // ഫയൽ ഉണ്ടെങ്കിൽ അത് ഉപയോഗിക്കും
+      } catch (err) {
+        // ഫയൽ ഡിലീറ്റ് ആയിട്ടുണ്ടെങ്കിൽ പഴയ ഐഡി ഒഴിവാക്കുന്നു
+        localStorage.removeItem(key);
+      }
+    }
+
+    // ഫയൽ ഇല്ലെങ്കിൽ പുതിയൊരു ഗൂഗിൾ ഷീറ്റ് തനിയെ ഉണ്ടാക്കുന്നു
     const body = {
       properties: { title: "Treasury Bill Reconciliation Data" },
       sheets: [{ properties: { title: TBR_CONFIG.SHEET_NAME } }]
     };
 
     const created = await _request(BASE, { method: "POST", body: JSON.stringify(body) });
-    localStorage.setItem(TBR_CONFIG.SPREADSHEET_ID_KEY, created.spreadsheetId);
+    localStorage.setItem(key, created.spreadsheetId);
     return created.spreadsheetId;
   }
 
