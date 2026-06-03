@@ -1,14 +1,5 @@
-/**
- * api.js
- * ======
- * All Google Sheets API interactions with dynamic sheet ID extraction,
- * auto-retry exponential backoff and connection race condition handlers.
- */
-
 const TbrApi = (() => {
   const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
-
-  // ── Low-level fetch wrapper with auto-retry on 429/503 ─────────────────────
 
   async function _request(url, options = {}, retries = 3) {
     const token = TbrAuth.getToken();
@@ -28,9 +19,8 @@ const TbrApi = (() => {
 
       if (resp.ok) return resp.json();
 
-      // Retry on API rate-limit (429) or transient server errors (503)
       if ((resp.status === 429 || resp.status === 503) && attempt < retries) {
-        const delay = Math.pow(2, attempt) * 500; // 500ms, 1000ms, 2000ms
+        const delay = Math.pow(2, attempt) * 500;
         console.warn(`[TbrApi] ${resp.status} received. Retrying in ${delay}ms... (Attempt ${attempt + 1})`);
         await new Promise(res => setTimeout(res, delay));
         continue;
@@ -41,8 +31,6 @@ const TbrApi = (() => {
       throw new Error(`Sheets API error ${resp.status}: ${msg}`);
     }
   }
-
-  // ── Spreadsheet bootstrap with execution lock ─────────────────────────────
 
   let _ensureSpreadsheetPromise = null;
 
@@ -69,8 +57,7 @@ const TbrApi = (() => {
       }
     }
 
-    // Fallback headers if creating a new sheet
-    const headerRow = TBR_CONFIG.HEADER_ROW || ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HOA", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
+    const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HOA", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
 
     const body = {
       properties: { title: TBR_CONFIG.SPREADSHEET_TITLE || "Treasury Bill Reconciliation Data" },
@@ -97,11 +84,8 @@ const TbrApi = (() => {
     return id;
   }
 
-  // ── Data Retrieval ─────────────────────────────────────────────────────────
-
   async function fetchAllRows() {
     const id = await ensureSpreadsheet();
-    // പുതിയ കോളം വന്നതുകൊണ്ട് A2:V മാറ്റി A2:Z ആക്കി
     const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A2:Z`);
     const data = await _request(`${BASE}/${id}/values/${range}`);
     return data.values || [];
@@ -124,8 +108,6 @@ const TbrApi = (() => {
     );
   }
 
-  // ── Data Writing ───────────────────────────────────────────────────────────
-
   async function savePeriodData(finYear, month, dataRows) {
     const id = await ensureSpreadsheet();
 
@@ -134,7 +116,6 @@ const TbrApi = (() => {
     if (dataRows.length === 0) return;
 
     const values = dataRows.map(row => [finYear, month, ...row]);
-    // ഇവിടെയും പുതിയ കോളം സേവ് ചെയ്യാൻ A:V മാറ്റി A:Z ആക്കി
     const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:Z`);
 
     await _request(
@@ -184,7 +165,6 @@ const TbrApi = (() => {
     });
   }
 
-  // ── Sheet ID helper ────────────────────────────────────────────────────────
   let _sheetIdCache = null;
 
   async function _getSheetId(spreadsheetId) {
@@ -197,7 +177,6 @@ const TbrApi = (() => {
     return _sheetIdCache;
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
   return {
     ensureSpreadsheet,
     fetchAllRows,
