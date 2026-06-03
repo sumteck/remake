@@ -16,72 +16,28 @@ const TbrApi = (() => {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       const resp = await fetch(url, { ...defaults, ...options, headers });
-
       if (resp.ok) return resp.json();
-
       if ((resp.status === 429 || resp.status === 503) && attempt < retries) {
-        const delay = Math.pow(2, attempt) * 500;
-        console.warn(`[TbrApi] ${resp.status} received. Retrying in ${delay}ms... (Attempt ${attempt + 1})`);
-        await new Promise(res => setTimeout(res, delay));
+        await new Promise(res => setTimeout(res, Math.pow(2, attempt) * 500));
         continue;
       }
-
       const err = await resp.json().catch(() => ({}));
-      const msg = err?.error?.message || resp.statusText;
-      throw new Error(`Sheets API error ${resp.status}: ${msg}`);
+      throw new Error(`Sheets API error ${resp.status}: ${err?.error?.message || resp.statusText}`);
     }
   }
-
-  let _ensureSpreadsheetPromise = null;
 
   async function ensureSpreadsheet() {
-    if (_ensureSpreadsheetPromise) return _ensureSpreadsheetPromise;
-    _ensureSpreadsheetPromise = _doEnsureSpreadsheet();
-    try {
-      return await _ensureSpreadsheetPromise;
-    } finally {
-      _ensureSpreadsheetPromise = null;
-    }
-  }
-
-  async function _doEnsureSpreadsheet() {
     let id = localStorage.getItem(TBR_CONFIG.SPREADSHEET_ID_KEY);
-
-    if (id) {
-      try {
-        await _request(`${BASE}/${id}?fields=spreadsheetId`);
-        return id;
-      } catch (e) {
-        console.warn("Stored spreadsheet inaccessible, creating new one.", e);
-        localStorage.removeItem(TBR_CONFIG.SPREADSHEET_ID_KEY);
-      }
-    }
-
-    const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HOA", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
+    if (id) return id;
 
     const body = {
-      properties: { title: TBR_CONFIG.SPREADSHEET_TITLE || "Treasury Bill Reconciliation Data" },
-      sheets: [{
-        properties: { title: TBR_CONFIG.SHEET_NAME },
-        data: [{
-          startRow: 0,
-          startColumn: 0,
-          rowData: [{
-            values: headerRow.map(v => ({ userEnteredValue: { stringValue: v } }))
-          }]
-        }]
-      }]
+      properties: { title: "Treasury Bill Reconciliation Data" },
+      sheets: [{ properties: { title: TBR_CONFIG.SHEET_NAME } }]
     };
 
-    const created = await _request(BASE, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-
-    id = created.spreadsheetId;
-    localStorage.setItem(TBR_CONFIG.SPREADSHEET_ID_KEY, id);
-    console.log("Created new spreadsheet:", id);
-    return id;
+    const created = await _request(BASE, { method: "POST", body: JSON.stringify(body) });
+    localStorage.setItem(TBR_CONFIG.SPREADSHEET_ID_KEY, created.spreadsheetId);
+    return created.spreadsheetId;
   }
 
   async function fetchAllRows() {
@@ -100,88 +56,39 @@ const TbrApi = (() => {
     );
   }
 
-  async function fetchRowsForYear(finYear) {
-    const all = await fetchAllRows();
-    const C = TBR_CONFIG.COLUMNS;
-    return all.filter(row =>
-      (row[C.FIN_YEAR] || "").trim() === finYear.trim()
-    );
-  }
-
   async function savePeriodData(finYear, month, dataRows) {
     const id = await ensureSpreadsheet();
-
     await _deleteRowsForPeriod(id, finYear, month);
-
     if (dataRows.length === 0) return;
 
     const values = dataRows.map(row => [finYear, month, ...row]);
     const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:Z`);
-
-    await _request(
-      `${BASE}/${id}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
-      {
-        method: "POST",
-        body: JSON.stringify({ values }),
-      }
-    );
+    await _request(`${BASE}/${id}/values/${range}:append?valueInputOption=USER_ENTERED`, {
+      method: "POST",
+      body: JSON.stringify({ values }),
+    });
   }
 
   async function _deleteRowsForPeriod(spreadsheetId, finYear, month) {
     const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:B`);
     const data = await _request(`${BASE}/${spreadsheetId}/values/${range}`);
     const rows = data.values || [];
-
     const toDelete = [];
     for (let i = 1; i < rows.length; i++) {
-      if (
-        (rows[i][0] || "").trim() === finYear.trim() &&
-        (rows[i][1] || "").trim() === month.trim()
-      ) {
-        toDelete.push(i); 
-      }
+      if ((rows[i][0] || "").trim() === finYear.trim() && (rows[i][1] || "").trim() === month.trim()) toDelete.push(i);
     }
-
     if (toDelete.length === 0) return;
-
     toDelete.sort((a, b) => b - a);
-
     const sheetId = await _getSheetId(spreadsheetId);
-
-    const requests = toDelete.map(rowIdx => ({
-      deleteDimension: {
-        range: {
-          sheetId: sheetId,
-          dimension: "ROWS",
-          startIndex: rowIdx,
-          endIndex: rowIdx + 1,
-        }
-      }
-    }));
-
-    await _request(`${BASE}/${spreadsheetId}:batchUpdate`, {
-      method: "POST",
-      body: JSON.stringify({ requests }),
-    });
+    const requests = toDelete.map(rowIdx => ({ deleteDimension: { range: { sheetId: sheetId, dimension: "ROWS", startIndex: rowIdx, endIndex: rowIdx + 1 } } }));
+    await _request(`${BASE}/${spreadsheetId}:batchUpdate`, { method: "POST", body: JSON.stringify({ requests }) });
   }
-
-  let _sheetIdCache = null;
 
   async function _getSheetId(spreadsheetId) {
-    if (_sheetIdCache !== null) return _sheetIdCache;
     const meta = await _request(`${BASE}/${spreadsheetId}?fields=sheets.properties`);
-    const sheet = (meta.sheets || []).find(
-      s => s.properties.title === TBR_CONFIG.SHEET_NAME
-    );
-    _sheetIdCache = sheet ? sheet.properties.sheetId : 0;
-    return _sheetIdCache;
+    const sheet = (meta.sheets || []).find(s => s.properties.title === TBR_CONFIG.SHEET_NAME);
+    return sheet ? sheet.properties.sheetId : 0;
   }
 
-  return {
-    ensureSpreadsheet,
-    fetchAllRows,
-    fetchRowsForPeriod,
-    fetchRowsForYear,
-    savePeriodData,
-  };
+  return { ensureSpreadsheet, fetchAllRows, fetchRowsForPeriod, savePeriodData };
 })();
