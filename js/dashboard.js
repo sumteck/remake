@@ -106,7 +106,6 @@ const TbrApp = (() => {
       const isSpark = b.billType === "SPARK";
       const typeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${isSpark ? 'bg-primary-container/20 text-primary-container' : 'bg-secondary-fixed text-on-secondary-fixed'}">${b.billType}</span>`;
 
-      // Corrected order of columns
       tr.innerHTML = `
         <td class="px-table-cell-padding-x py-table-cell-padding-y text-on-surface-variant font-medium">${i + 1}</td>
         <td class="px-table-cell-padding-x py-table-cell-padding-y">${typeBadge}</td>
@@ -147,7 +146,7 @@ const TbrApp = (() => {
         </td>
         
         <td class="px-table-cell-padding-x py-table-cell-padding-y text-center">
-          <button onclick="TbrApp.removeRow(${i})" class="text-outline-variant hover:text-error transition-colors p-1" title="Remove Row">
+          <button onclick="TbrApp.removeRow(${i})" class="text-outline-variant hover:text-error transition-colors p-1" title="Delete this row permanently">
             <span class="material-symbols-outlined text-[18px]">delete</span>
           </button>
         </td>
@@ -162,10 +161,35 @@ const TbrApp = (() => {
     }
   }
 
+  // ── INDIVIDUAL ROW DELETE LOGIC ──
   function removeRow(index) {
-    parsedBills.splice(index, 1);
-    renderTable();
-    toast("Row removed", "info");
+    showConfirmModal(
+      "Delete Bill?", 
+      "Are you sure you want to delete this bill? It will be removed from Google Sheets permanently.", 
+      async () => {
+        // Remove from local array
+        parsedBills.splice(index, 1);
+        renderTable();
+        
+        // Auto-save to Google Sheets
+        if (TbrAuth.isSignedIn()) {
+          const { finYear, month } = _getSelectedPeriod();
+          if (finYear && month) {
+            setLoading(true, "Updating Google Sheets…");
+            try {
+              await TbrApi.saveRowsForPeriod(finYear, month, parsedBills);
+              toast("Row permanently deleted!", "success");
+            } catch (err) {
+              toast(`Error updating sheet: ${err.message}`, "error");
+            } finally {
+              setLoading(false);
+            }
+          }
+        } else {
+          toast("Row removed from screen", "info");
+        }
+      }
+    );
   }
 
   // ── Load from Google Sheets ──
@@ -226,7 +250,7 @@ const TbrApp = (() => {
       try {
         const results = await TbrParser.parsePdf(file);
         results.forEach(res => {
-          parsedBills.unshift(res); // Add to top
+          parsedBills.unshift(res); 
           successCount++;
         });
       } catch (err) {
@@ -302,7 +326,7 @@ const TbrApp = (() => {
     }
   }
 
-  // ── Save to Google Sheet ──
+  // ── Save / Clear Google Sheet Data ──
   async function saveTableToSheet() {
     if (!TbrAuth.isSignedIn()) {
       toast("Please sign in first.", "error");
@@ -335,11 +359,15 @@ const TbrApp = (() => {
     $("select-fin-year")?.addEventListener("change", loadPeriodData);
     $("select-month")?.addEventListener("change", loadPeriodData);
 
+    // ── CLEAR SCREEN ONLY LOGIC ──
     $("clear-table-btn")?.addEventListener("click", () => {
       if (parsedBills.length === 0) return;
-      showConfirmModal("Clear Table?", "This will remove all rows from the preview. (Data in Google Sheets will remain until you save).", () => {
-        parsedBills = [];
-        renderTable();
+      showConfirmModal(
+        "Clear Screen?", 
+        "This will clear the preview table from the screen. (Data already saved in Google Sheets will NOT be deleted).", 
+        () => {
+          parsedBills = [];
+          renderTable();
       });
     });
 
