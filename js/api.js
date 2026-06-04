@@ -36,7 +36,8 @@ const TbrApi = (() => {
 
   async function fetchAllRows() {
     const id = await ensureSpreadsheet();
-    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:Z`);
+    // ഹെഡിങ് ഉള്ളതുകൊണ്ട് രണ്ടാമത്തെ വരി മുതൽ (A2) ഡാറ്റ എടുക്കുന്നു
+    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A2:Z`);
     const data = await _request(`${BASE}/${id}/values/${range}`);
     return (data && data.values) ? data.values : [];
   }
@@ -53,6 +54,19 @@ const TbrApi = (() => {
 
   async function savePeriodData(finYear, month, dataRows) {
     const id = await ensureSpreadsheet();
+
+    // 🌟 സ്മാർട്ട് ഫീച്ചർ: ഷീറ്റ് പൂർണ്ണമായും കാലിയാണെങ്കിൽ ആദ്യം ഹെഡിങ് തനിയെ ഉണ്ടാക്കും
+    const checkRange = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A1:A1`);
+    const checkData = await _request(`${BASE}/${id}/values/${checkRange}`);
+    if (!checkData || !checkData.values || checkData.values.length === 0) {
+      const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HOA", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
+      const headerRange = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A1:Z1`);
+      await _request(`${BASE}/${id}/values/${headerRange}:append?valueInputOption=USER_ENTERED`, {
+        method: "POST",
+        body: JSON.stringify({ values: [headerRow] }),
+      });
+    }
+
     await _deleteRowsForPeriod(id, finYear, month);
     if (!dataRows || dataRows.length === 0) return;
 
@@ -70,8 +84,8 @@ const TbrApi = (() => {
     const rows = (data && data.values) ? data.values : [];
     const toDelete = [];
     
-    // ഇവിടെയാണ് താങ്കൾ മാറ്റാൻ വിട്ടുപോയത് (i = 0 ആക്കിയിട്ടുണ്ട്)
-    for (let i = 0; i < rows.length; i++) {
+    // ഹെഡിങ് ഉള്ളതുകൊണ്ട് ഒന്നാമത്തെ വരി ഒഴിവാക്കി രണ്ടാമത്തെ വരി മുതൽ (i = 1) ഡിലീറ്റ് ചെയ്യാൻ പരിശോധിക്കുന്നു
+    for (let i = 1; i < rows.length; i++) {
       if ((rows[i][0] || "").trim() === (finYear || "").trim() && (rows[i][1] || "").trim() === (month || "").trim()) {
         toDelete.push(i);
       }
