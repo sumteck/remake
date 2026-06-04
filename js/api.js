@@ -37,7 +37,7 @@ const TbrApi = (() => {
 
   async function fetchAllRows() {
     const id = await ensureSpreadsheet();
-    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A2:Z`);
+    const range = encodeURIComponent(`${TBR_CONFIG.SHEET_NAME}!A:Z`);
     const data = await _request(`${BASE}/${id}/values/${range}`);
     return (data && data.values) ? data.values : [];
   }
