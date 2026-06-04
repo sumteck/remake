@@ -1,5 +1,5 @@
 /**
- * report.js (Excel Style - Corrected Headers & Progressive Totals Only)
+ * report.js (Excel Style - Dynamic Headers & Progressive Totals)
  * =====================================
  */
 
@@ -175,17 +175,51 @@ const TbrReport = (() => {
     });
   }
 
+  // ── പുതിയ റിപ്പോർട്ട് ഹെഡർ അപ്ഡേറ്റ് ചെയ്യുന്ന ഭാഗം ──
   function _renderReportHeader(finYear, month, rows) {
     const headingEl = $("report-period-heading");
     if (headingEl) headingEl.textContent = `Reconciliation Statement — ${month} — FY ${finYear}`;
     
-    const dateEl = $("print-month-year");
+    // മാസം & വർഷം
+    const dateEl = $("report-month-year");
     if (dateEl) dateEl.textContent = `${month} ${finYear}`;
     
-    const trsyEl = $("print-treasury");
-    if (trsyEl && rows && rows.length > 0) {
-      const firstTreasury = _col(rows[0], "TREASURY");
-      if(firstTreasury) trsyEl.textContent = firstTreasury;
+    if (rows && rows.length > 0) {
+      // 1. Treasury
+      const trsyEl = $("report-treasury");
+      if (trsyEl) trsyEl.textContent = _col(rows[0], "TREASURY") || "—";
+
+      // 2. Head of Account
+      const hoaEl = $("report-hoa");
+      if (hoaEl) hoaEl.textContent = _col(rows[0], "HOA") || "—";
+
+      // 3. Office & Department (സ്പ്ലിറ്റ് ചെയ്ത് എടുക്കുന്നു)
+      const fullDeptName = _col(rows[0], "DEPARTMENT") || "";
+      let officeName = "NAME OF OFFICE";
+      let departmentName = "NAME OF DEPARTMENT";
+
+      // '-' വെച്ച് മുറിക്കുന്നു (ഉദാ: Indian Systems of Medicine - GOVT AYURVEDA DISPENSARY ANGADIPPURAM)
+      if (fullDeptName.includes("-")) {
+        const parts = fullDeptName.split("-");
+        departmentName = parts[0].trim(); // ആദ്യത്തെ ഭാഗം ഡിപ്പാർട്ട്മെന്റ് 
+        officeName = parts[1].trim();     // രണ്ടാമത്തെ ഭാഗം ഓഫീസ് പേര്
+      } else if (fullDeptName) {
+        officeName = fullDeptName;
+        departmentName = "";
+      }
+
+      const officeEl = $("report-office-name");
+      if (officeEl) officeEl.textContent = officeName;
+
+      const deptEl = $("report-department-name");
+      if (deptEl) deptEl.textContent = departmentName;
+
+    } else {
+      // ഡാറ്റ ഇല്ലെങ്കിൽ ഹെഡിങ്ങുകൾ കാലിയാക്കുന്നു
+      if ($("report-treasury")) $("report-treasury").textContent = "";
+      if ($("report-hoa")) $("report-hoa").textContent = "";
+      if ($("report-office-name")) $("report-office-name").textContent = "";
+      if ($("report-department-name")) $("report-department-name").textContent = "";
     }
   }
 
