@@ -1,5 +1,5 @@
 /**
- * report.js (Multi-Table Auto-Generation with Consolidated Statement at Bottom)
+ * report.js (Bulletproof Multi-Table Auto-Generation with Error Tracking)
  * =====================================
  */
 
@@ -10,11 +10,18 @@ const TbrReport = (() => {
   const hide = el => el && el.classList.add("hidden");
 
   function toast(msg, type = "info") {
-    const colours = { success: "bg-green-600", error: "bg-red-600", info: "bg-sky-600" };
-    const container = $("toast-container");
-    if (!container) return;
+    const colours = { success: "bg-green-600", error: "bg-red-600", info: "bg-sky-600", warning: "bg-orange-500" };
+    let container = $("toast-container");
+    
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "toast-container";
+      container.className = "fixed top-4 right-4 z-[100] w-80 space-y-2 pointer-events-none";
+      document.body.appendChild(container);
+    }
+    
     const div = document.createElement("div");
-    div.className = `${colours[type]} text-white text-sm px-4 py-3 rounded shadow-lg mb-2`;
+    div.className = `${colours[type] || colours.info} text-white text-sm px-4 py-3 rounded shadow-lg mb-2`;
     div.textContent = msg;
     container.appendChild(div);
     setTimeout(() => { div.style.opacity = "0"; setTimeout(() => div.remove(), 300); }, 3500);
@@ -22,7 +29,9 @@ const TbrReport = (() => {
 
   function setLoading(active, msg = "Loading…") {
     const overlay = $("loading-overlay");
+    const msgEl = $("loading-message");
     if (overlay) overlay.classList.toggle("hidden", !active);
+    if (msgEl && msg) msgEl.textContent = msg;
   }
 
   function _fmt(val) {
@@ -30,16 +39,20 @@ const TbrReport = (() => {
     return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // ഐഡികൾ തെറ്റിയാലും തനിയെ കണ്ടുപിടിക്കാനുള്ള സംവിധാനം
   function _getSelectors() {
     return {
-      fySelect: $("report-fin-year") || $("select-fin-year"),
-      monthSelect: $("report-month") || $("select-month")
+      fySelect: $("report-fin-year") || $("select-fin-year") || document.querySelector('select[id*="year"]'),
+      monthSelect: $("report-month") || $("select-month") || document.querySelector('select[id*="month"]')
     };
   }
 
   function _populatePeriodSelectors() {
     const { fySelect, monthSelect } = _getSelectors();
-    if (!fySelect || !monthSelect) return;
+    if (!fySelect || !monthSelect) {
+      console.warn("Dropdowns for Year or Month not found in HTML!");
+      return;
+    }
 
     const now = new Date();
     const currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
@@ -93,16 +106,8 @@ const TbrReport = (() => {
       departmentName = "";
     }
 
-    const totals = {
-      grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0,
-      otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0
-    };
-    const colMap = {
-      grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA",
-      pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE",
-      otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY",
-      dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
-    };
+    const totals = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
+    const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
 
     let rowsHtml = "";
     rows.forEach(row => {
@@ -151,9 +156,7 @@ const TbrReport = (() => {
     return `
       <div class="mb-12" style="page-break-inside: avoid;">
         <div class="mb-6 relative">
-          <div class="absolute left-0 top-0 font-bold text-sm">
-            File No: <span contenteditable="true" class="outline-none border-b border-dotted border-gray-600 inline-block w-40 font-normal focus:bg-yellow-100 cursor-text"></span>
-          </div>
+          <div class="absolute left-0 top-0 font-bold text-sm">File No: <span contenteditable="true" class="outline-none border-b border-dotted border-gray-600 inline-block w-40 font-normal focus:bg-yellow-100 cursor-text"></span></div>
           <div class="text-center flex flex-col items-center">
             <h2 class="text-lg font-bold uppercase">RECONCILIATION STATEMENT OF</h2>
             <h3 class="text-md font-bold uppercase mt-1 text-gray-800">${officeName}</h3>
@@ -161,44 +164,20 @@ const TbrReport = (() => {
             <div class="text-sm font-bold mt-2">for the month of <span class="underline">${month} ${finYear}</span></div>
           </div>
           <div class="flex justify-between items-end mt-4">
-            <div class="font-bold text-sm flex-1 text-left">
-              Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span>
-            </div>
+            <div class="font-bold text-sm flex-1 text-left">Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span></div>
             <div class="font-bold text-sm flex-1 text-center uppercase">NON-PLAN</div>
-            <div class="font-bold text-sm flex-1 text-right">
-              Treasury: <span class="font-normal text-gray-800">${treasury}</span>
-            </div>
+            <div class="font-bold text-sm flex-1 text-right">Treasury: <span class="font-normal text-gray-800">${treasury}</span></div>
           </div>
           <hr class="mt-2 border-gray-800 border-t-2">
         </div>
-
         <table class="w-full text-[10px] md:text-[11px] border-collapse border border-black bg-white">
           <thead>
             <tr class="bg-gray-100 font-bold text-black uppercase text-center">
-              <th class="p-1 border border-black">Spark Code / BRN</th>
-              <th class="p-1 border border-black">BILL NO</th>
-              <th class="p-1 border border-black">Date of Encashment</th>
-              <th class="p-1 border border-black">GROSS AMOUNT</th>
-              <th class="p-1 border border-black">PAY</th>
-              <th class="p-1 border border-black">D.A</th>
-              <th class="p-1 border border-black">H.R.A</th>
-              <th class="p-1 border border-black">CCA</th>
-              <th class="p-1 border border-black">PG Allw</th>
-              <th class="p-1 border border-black">Rural Allw</th>
-              <th class="p-1 border border-black">Other Allw</th>
-              <th class="p-1 border border-black">Cons. Pay</th>
-              <th class="p-1 border border-black">Daily Wages</th>
-              <th class="p-1 border border-black">M&S</th>
-              <th class="p-1 border border-black">Tour T.A</th>
-              <th class="p-1 border border-black">MR</th>
-              <th class="p-1 border border-black">REMARKS</th>
+              <th class="p-1 border border-black">Spark Code / BRN</th><th class="p-1 border border-black">BILL NO</th><th class="p-1 border border-black">Date of Encashment</th><th class="p-1 border border-black">GROSS AMOUNT</th><th class="p-1 border border-black">PAY</th><th class="p-1 border border-black">D.A</th><th class="p-1 border border-black">H.R.A</th><th class="p-1 border border-black">CCA</th><th class="p-1 border border-black">PG Allw</th><th class="p-1 border border-black">Rural Allw</th><th class="p-1 border border-black">Other Allw</th><th class="p-1 border border-black">Cons. Pay</th><th class="p-1 border border-black">Daily Wages</th><th class="p-1 border border-black">M&S</th><th class="p-1 border border-black">Tour T.A</th><th class="p-1 border border-black">MR</th><th class="p-1 border border-black">REMARKS</th>
             </tr>
           </thead>
           <tbody>
-            ${rowsHtml}
-            <tr class="bg-white">${curHtml}</tr>
-            <tr class="bg-white">${prevHtml}</tr>
-            <tr class="bg-gray-100">${progHtml}</tr>
+            ${rowsHtml}<tr class="bg-white">${curHtml}</tr><tr class="bg-white">${prevHtml}</tr><tr class="bg-gray-100">${progHtml}</tr>
           </tbody>
         </table>
       </div>
@@ -206,31 +185,37 @@ const TbrReport = (() => {
   }
 
   async function _generateReport() {
-    if (!TbrAuth.isSignedIn()) {
-      toast("Please sign in with Google first.", "error");
-      return;
-    }
-    const { finYear, month } = _getSelectedPeriod();
-    if (!finYear || !month) return;
-
-    setLoading(true, "Fetching data from Google Sheets…");
     try {
+      if (!TbrAuth.isSignedIn()) {
+        toast("Please sign in with Google first.", "error");
+        return;
+      }
+      
+      const { finYear, month } = _getSelectedPeriod();
+      if (!finYear || !month) {
+        toast("Please select both Financial Year and Month to generate report.", "warning");
+        return;
+      }
+
       const container = $("dynamic-reports-container");
-      if (!container) return;
+      if (!container) {
+        toast("Error: 'dynamic-reports-container' is missing in HTML. Check report.html", "error");
+        return;
+      }
+
+      setLoading(true, `Fetching data for ${month} ${finYear}…`);
 
       const allRows = await TbrApi.fetchAllRows();
+      if (!allRows) throw new Error("Could not fetch data from Google Sheets.");
 
-      const currentRows = allRows.filter(r =>
-        String(r[C.FIN_YEAR]).trim() === finYear &&
-        String(r[C.MONTH]).trim() === month
-      );
+      const currentRows = allRows.filter(r => String(r[C.FIN_YEAR]).trim() === finYear && String(r[C.MONTH]).trim() === month);
 
       if (currentRows.length === 0) {
-        container.innerHTML = `<div class="text-center py-10 font-bold text-red-500">No data found for ${month} ${finYear}.</div>`;
+        container.innerHTML = `<div class="text-center py-10 font-bold text-red-500">No data found in Google Sheets for ${month} ${finYear}.</div>`;
         const reportSection = $("report-content");
         if (reportSection) show(reportSection);
+        toast(`No data found for ${month} ${finYear}.`, "warning");
         setLoading(false);
-        toast(`No data found for ${month}.`, "info");
         return;
       }
 
@@ -245,54 +230,31 @@ const TbrReport = (() => {
       const currentMonthIdx = monthOrder.indexOf(month);
       const prevMonths = monthOrder.slice(0, currentMonthIdx);
 
-      const prevRows = allRows.filter(r =>
-        String(r[C.FIN_YEAR]).trim() === finYear &&
-        prevMonths.includes(String(r[C.MONTH]).trim())
-      );
+      const prevRows = allRows.filter(r => String(r[C.FIN_YEAR]).trim() === finYear && prevMonths.includes(String(r[C.MONTH]).trim()));
 
-      const colMap = {
-        grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA",
-        pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE",
-        otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY",
-        dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR"
-      };
+      const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
 
       let finalHtml = "";
       let blockIndex = 0;
 
-      // ഗ്രാൻഡ് ടോട്ടൽ കണ്ടെത്താനുള്ള വേരിയബിളുകൾ
       const grandTotalsCur = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
       const grandTotalsPrev = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
 
-      // ഈ മാസത്തെ ആകെ തുക കൂട്ടുന്നു
-      currentRows.forEach(row => {
-        Object.keys(grandTotalsCur).forEach(k => { grandTotalsCur[k] += _colNum(row, colMap[k]); });
-      });
+      currentRows.forEach(row => { Object.keys(grandTotalsCur).forEach(k => { grandTotalsCur[k] += _colNum(row, colMap[k]); }); });
 
-      // ഓരോ HOA ടേബിളുകളും ഉണ്ടാക്കുന്നു 
       for (const hoa of Object.keys(currentGroups)) {
         const rowsForHoa = currentGroups[hoa];
         const prevRowsForHoa = prevRows.filter(r => (_col(r, "HOA") || "UNKNOWN_HOA") === hoa);
 
-        const prevTotals = {
-          grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0,
-          otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0
-        };
+        const prevTotals = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
+        prevRowsForHoa.forEach(row => { Object.keys(prevTotals).forEach(k => { prevTotals[k] += parseFloat(row[C[colMap[k]]]) || 0; }); });
 
-        prevRowsForHoa.forEach(row => {
-          Object.keys(prevTotals).forEach(k => {
-            prevTotals[k] += parseFloat(row[C[colMap[k]]]) || 0;
-          });
-        });
-
-        // മുൻ മാസങ്ങളിലെ ആകെ തുക കൂട്ടുന്നു
         Object.keys(grandTotalsPrev).forEach(k => { grandTotalsPrev[k] += prevTotals[k]; });
 
         finalHtml += _buildReportBlock(finYear, month, rowsForHoa, prevTotals, blockIndex);
         blockIndex++;
       }
 
-      // ── ഏറ്റവും താഴെ വരുന്ന CONSOLIDATED STATEMENT ──
       const keys = ["grossAmount", "pay", "da", "hra", "cca", "pgAllowance", "ruralAllowance", "otherAllowance", "consolidatePay", "dailyWages", "ms", "tourTa", "mr"];
       
       let gCurHtml = `<td class="p-2 border border-black text-center font-extrabold uppercase" colspan="3">TOTAL EXPENDITURE DURING THIS MONTH</td>`;
@@ -300,15 +262,11 @@ const TbrReport = (() => {
       gCurHtml += `<td class="p-2 border border-black"></td>`;
 
       let gPrevHtml = `<td class="p-2 border border-black text-center font-extrabold uppercase" colspan="3">TOTAL EXPENDITURE UP TO PREVIOUS MONTH</td>`;
-      keys.forEach(k => { 
-        gPrevHtml += `<td class="p-2 border border-black text-right font-extrabold" id="grand-prev-${k}" data-grand-current="${grandTotalsCur[k]}">${_fmt(grandTotalsPrev[k])}</td>`; 
-      });
+      keys.forEach(k => { gPrevHtml += `<td class="p-2 border border-black text-right font-extrabold" id="grand-prev-${k}" data-grand-current="${grandTotalsCur[k]}">${_fmt(grandTotalsPrev[k])}</td>`; });
       gPrevHtml += `<td class="p-2 border border-black"></td>`;
 
       let gProgHtml = `<td class="p-2 border border-black text-center font-black uppercase text-blue-900" colspan="3">GRAND PROGRESSIVE TOTAL</td>`;
-      keys.forEach(k => { 
-        gProgHtml += `<td class="p-2 border border-black text-right font-black text-blue-900" id="grand-prog-${k}">${_fmt(grandTotalsCur[k] + grandTotalsPrev[k])}</td>`; 
-      });
+      keys.forEach(k => { gProgHtml += `<td class="p-2 border border-black text-right font-black text-blue-900" id="grand-prog-${k}">${_fmt(grandTotalsCur[k] + grandTotalsPrev[k])}</td>`; });
       gProgHtml += `<td class="p-2 border border-black"></td>`;
 
       finalHtml += `
@@ -317,41 +275,21 @@ const TbrReport = (() => {
           <table class="w-full text-[10px] md:text-[11px] border-collapse border-2 border-black bg-white shadow-sm">
             <thead>
               <tr class="bg-gray-200 font-bold text-black uppercase text-center">
-                <th class="p-2 border border-black">Spark Code / BRN</th>
-                <th class="p-2 border border-black">BILL NO</th>
-                <th class="p-2 border border-black">Date of Encashment</th>
-                <th class="p-2 border border-black">GROSS AMOUNT</th>
-                <th class="p-2 border border-black">PAY</th>
-                <th class="p-2 border border-black">D.A</th>
-                <th class="p-2 border border-black">H.R.A</th>
-                <th class="p-2 border border-black">CCA</th>
-                <th class="p-2 border border-black">PG Allw</th>
-                <th class="p-2 border border-black">Rural Allw</th>
-                <th class="p-2 border border-black">Other Allw</th>
-                <th class="p-2 border border-black">Cons. Pay</th>
-                <th class="p-2 border border-black">Daily Wages</th>
-                <th class="p-2 border border-black">M&S</th>
-                <th class="p-2 border border-black">Tour T.A</th>
-                <th class="p-2 border border-black">MR</th>
-                <th class="p-2 border border-black">REMARKS</th>
+                <th class="p-2 border border-black">Spark Code / BRN</th><th class="p-2 border border-black">BILL NO</th><th class="p-2 border border-black">Date of Encashment</th><th class="p-2 border border-black">GROSS AMOUNT</th><th class="p-2 border border-black">PAY</th><th class="p-2 border border-black">D.A</th><th class="p-2 border border-black">H.R.A</th><th class="p-2 border border-black">CCA</th><th class="p-2 border border-black">PG Allw</th><th class="p-2 border border-black">Rural Allw</th><th class="p-2 border border-black">Other Allw</th><th class="p-2 border border-black">Cons. Pay</th><th class="p-2 border border-black">Daily Wages</th><th class="p-2 border border-black">M&S</th><th class="p-2 border border-black">Tour T.A</th><th class="p-2 border border-black">MR</th><th class="p-2 border border-black">REMARKS</th>
               </tr>
             </thead>
-            <tbody>
-              <tr class="bg-white">${gCurHtml}</tr>
-              <tr class="bg-white">${gPrevHtml}</tr>
-              <tr class="bg-blue-50">${gProgHtml}</tr>
-            </tbody>
+            <tbody><tr class="bg-white">${gCurHtml}</tr><tr class="bg-white">${gPrevHtml}</tr><tr class="bg-blue-50">${gProgHtml}</tr></tbody>
           </table>
         </div>
       `;
 
       container.innerHTML = finalHtml;
-
       const reportSection = $("report-content");
       if (reportSection) show(reportSection);
-      toast(`Report & Consolidated Statement generated!`, "success");
+      toast(`Report & Consolidated Statement generated successfully!`, "success");
 
     } catch (err) {
+      console.error(err);
       toast(`Error: ${err.message}`, "error");
     } finally {
       setLoading(false);
@@ -360,36 +298,36 @@ const TbrReport = (() => {
 
   function init() {
     _populatePeriodSelectors();
-    const btn = $("generate-report-btn");
-    if (btn) btn.addEventListener("click", _generateReport);
-    const printBtn = $("print-report-btn");
+    
+    // ഐഡികൾ തനിയെ കണ്ടുപിടിക്കാനുള്ള സംവിധാനം ചേർത്തു
+    const btn = $("generate-report-btn") || document.querySelector('button[id*="generate"]');
+    if (btn) {
+      btn.addEventListener("click", _generateReport);
+    } else {
+      setTimeout(() => toast("Warning: Generate Report button missing in HTML!", "error"), 2000);
+    }
+    
+    const printBtn = $("print-report-btn") || document.querySelector('button[id*="print"]');
     if (printBtn) printBtn.addEventListener("click", () => window.print());
 
     const container = $("dynamic-reports-container");
     if(container) {
       container.addEventListener("focusin", (e) => {
-        if(e.target.classList.contains("prev-month-cell")) {
-           setTimeout(() => { document.execCommand('selectAll', false, null); }, 0);
-        }
+        if(e.target.classList.contains("prev-month-cell")) { setTimeout(() => { document.execCommand('selectAll', false, null); }, 0); }
       });
       container.addEventListener("input", (e) => {
         if(e.target.classList.contains("prev-month-cell")) {
           const key = e.target.getAttribute("data-key");
           const blockIndex = e.target.getAttribute("data-block");
           const currentVal = parseFloat(e.target.getAttribute("data-current")) || 0;
-
           let textVal = e.target.textContent.replace(/[^0-9.-]+/g,"");
           let prevVal = parseFloat(textVal) || 0;
 
-          // മുകളിലുള്ള ടേബിളിലെ ടോട്ടൽ മാറ്റുന്നു
-          let progTotal = currentVal + prevVal;
           const progCell = $(`prog-${blockIndex}-${key}`);
-          if (progCell) progCell.textContent = _fmt(progTotal);
+          if (progCell) progCell.textContent = _fmt(currentVal + prevVal);
 
-          // താഴെയുള്ള CONSOLIDATED STATEMENT തനിയെ മാറ്റുന്നു (Live Update)
           let newGrandPrev = 0;
-          const allPrevCells = container.querySelectorAll(`.prev-month-cell[data-key="${key}"]`);
-          allPrevCells.forEach(cell => {
+          container.querySelectorAll(`.prev-month-cell[data-key="${key}"]`).forEach(cell => {
             newGrandPrev += parseFloat(cell.textContent.replace(/[^0-9.-]+/g,"")) || 0;
           });
 
@@ -397,7 +335,6 @@ const TbrReport = (() => {
           if (grandPrevCell) {
             grandPrevCell.textContent = _fmt(newGrandPrev);
             const grandCurVal = parseFloat(grandPrevCell.getAttribute("data-grand-current")) || 0;
-            
             const grandProgCell = $(`grand-prog-${key}`);
             if (grandProgCell) grandProgCell.textContent = _fmt(grandCurVal + newGrandPrev);
           }
