@@ -1,82 +1,8 @@
 /**
- * auth.js — v3
- * ============
- * Google OAuth 2.0 authentication for the Treasury Bill Reconciliation App.
- * Uses Google Identity Services (GIS) token-based / implicit flow.
- *
- * ==========================================================================
- * WHAT'S NEW IN v3  (session persistence across MPA page navigation)
- * ==========================================================================
- *
- * PROBLEM
- * -------
- * The app is a Multi-Page Application. Every time the user follows a navbar
- * link (index.html → report.html, or back), the browser discards the entire
- * JavaScript environment. The in-memory `_accessToken` is destroyed and the
- * user sees the sign-in prompt again on every page.
- *
- * SOLUTION — sessionStorage persistence
- * --------------------------------------
- * On every successful sign-in (new token received from GIS) the access token
- * and its expiry timestamp are written to sessionStorage under two keys:
- *
- *   sessionStorage["tbr_access_token"]   – the raw OAuth access token string
- *   sessionStorage["tbr_token_expiry"]   – epoch-ms expiry as a string
- *
- * On every page load the IIFE immediately calls _tryRestoreSession(), which:
- *   1. Reads both keys from sessionStorage.
- *   2. Checks that the token exists AND has not expired.
- *   3. If valid: copies the values back into the in-memory variables.
- *      (No UI update yet — page modules haven't registered callbacks yet.)
- *   4. If missing or expired: removes the stale keys and leaves state empty.
- *
- * The deferred UI update is handled by the new public `init()` method, which
- * must be called from DOMContentLoaded AFTER all page modules have registered
- * their `onSignIn` / `onSignOut` callbacks. `init()` checks the in-memory
- * state (already populated by _tryRestoreSession) and fires _updateUI and all
- * callbacks exactly once, in the right order.
- *
- * WHY sessionStorage AND NOT localStorage?
- * -----------------------------------------
- * • sessionStorage is cleared automatically when the tab closes or the
- *   browser session ends — correct behaviour for OAuth tokens.
- * • Each tab has its own independent sessionStorage, so signing out in one
- *   tab does not affect other tabs (desirable in a multi-user environment).
- * • localStorage would persist tokens across browser restarts, creating a
- *   stale-token risk if the machine is shared or the token is revoked.
- *
- * SECURITY NOTE
- * -------------
- * sessionStorage is readable by any same-origin JavaScript. If an attacker
- * can execute arbitrary JS on the page they can read the token — but this is
- * identical to the risk of storing it in memory. sessionStorage does NOT
- * increase the XSS attack surface compared to the previous in-memory approach.
- * HTTPS (enforced on GitHub Pages) prevents network-level interception.
- *
- * ==========================================================================
- * FIXES CARRIED FORWARD FROM v2
- * ==========================================================================
- *
- * FIX-1 (v2) — CALLBACK OVERWRITE
- *   v1 used scalar `_onSignInCallback` / `_onSignOutCallback`. The last
- *   caller to `onSignIn(cb)` silently discarded all previous registrations.
- *   Fixed by using arrays: every call appends; all callbacks fire in order.
- *
- * FIX-2 (v2) — GIS ASYNC RACE
- *   `async defer` on the GIS <script> tag means `google.accounts` may not
- *   exist when auth.js executes. `_ensureTokenClient()` now awaits a 100 ms
- *   polling loop (max 10 s) before initialising the token client.
- *
- * FIX-3 (v2) — STALE SERVICE WORKER
- *   A leftover dev-time SW can intercept requests and serve cached JS/HTML.
- *   A one-time cleanup at module load unregisters all SWs on the origin.
- */
-
-// ── Service Worker cleanup ────────────────────────────────────────────────
-/**
  * auth.js
  * =======
  * Google OAuth 2.0 authentication.
+ * Updated: Google Drive permission included for auto-creating sheets.
  */
 
 if ("serviceWorker" in navigator) {
@@ -146,7 +72,8 @@ const TbrAuth = (() => {
     await _waitForGIS();
     _tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: TBR_CONFIG.CLIENT_ID,
-      scope:     TBR_CONFIG.SCOPES,
+      // ഇവിടെയാണ് ഗൂഗിൾ ഡ്രൈവിന്റെ പെർമിഷൻ കൂടി നമ്മൾ ചേർത്തത്
+      scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file",
       callback:  (tokenResponse) => {
         if (tokenResponse.error) {
           _showAuthError(tokenResponse.error_description || tokenResponse.error);
