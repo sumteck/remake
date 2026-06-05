@@ -3,7 +3,7 @@
  * Bulletproof Google Sheets API with Smart Merge & Targeted Single Delete
  */
 const TbrApi = (() => {
-  const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
+  "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file"
 
   async function _request(url, options = {}, retries = 3) {
     const token = TbrAuth.getToken();
