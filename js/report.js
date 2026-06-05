@@ -1,5 +1,5 @@
 /**
- * report.js (Bulletproof Auto-Generation: Single Main Header & HOA only above tables)
+ * report.js (Treasury & NON-PLAN only on the first table)
  * =====================================
  */
 
@@ -86,9 +86,9 @@ const TbrReport = (() => {
   const _col = (row, colKey) => row[C[colKey]] || "";
   const _colNum = (row, colKey) => parseFloat(row[C[colKey]]) || 0;
 
-  // ── ഓരോ ടേബിളും വരയ്ക്കുന്ന ഭാഗം (ഇപ്പോൾ Head of Account മാത്രം) ──
   function _buildReportBlock(rows, prevTotals, blockIndex) {
     const hoa = _col(rows[0], "HOA") || "—";
+    const treasury = _col(rows[0], "TREASURY") || "—"; 
 
     const totals = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
     const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
@@ -137,11 +137,29 @@ const TbrReport = (() => {
     });
     progHtml += `<td class="p-1 border border-black"></td>`;
 
+    // ആദ്യത്തെ ടേബിളാണെങ്കിൽ മാത്രം (blockIndex === 0) മൂന്നും കൊടുക്കും, അല്ലെങ്കിൽ Head of Account മാത്രം കൊടുക്കും
+    let tableHeader = "";
+    if (blockIndex === 0) {
+      tableHeader = `
+        <div class="flex justify-between items-end mb-2">
+          <div class="font-bold text-sm flex-1 text-left">Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span></div>
+          <div class="font-bold text-sm flex-1 text-center uppercase">NON-PLAN</div>
+          <div class="font-bold text-sm flex-1 text-right">Treasury: <span class="font-normal text-gray-800">${treasury}</span></div>
+        </div>
+      `;
+    } else {
+      tableHeader = `
+        <div class="flex justify-between items-end mb-2">
+          <div class="font-bold text-sm flex-1 text-left">Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span></div>
+          <div class="font-bold text-sm flex-1 text-center uppercase"></div>
+          <div class="font-bold text-sm flex-1 text-right"></div>
+        </div>
+      `;
+    }
+
     return `
       <div class="mb-12" style="page-break-inside: avoid;">
-        <div class="mb-2 font-bold text-sm text-left">
-          Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span>
-        </div>
+        ${tableHeader}
         <hr class="mb-4 border-gray-800 border-t-2">
         <table class="w-full text-[10px] md:text-[11px] border-collapse border border-black bg-white">
           <thead>
@@ -201,9 +219,7 @@ const TbrReport = (() => {
 
       const prevRows = allRows.filter(r => String(r[C.FIN_YEAR]).trim() === finYear && prevMonths.includes(String(r[C.MONTH]).trim()));
 
-      // ── മെയിൻ ഹെഡിങ് (ഇപ്പോൾ Treasury യും NON-PLAN ഉം ഇതിലുണ്ട്) ──
       const firstRow = currentRows[0];
-      const treasuryName = _col(firstRow, "TREASURY") || "—";
       const fullDeptName = _col(firstRow, "DEPARTMENT") || "";
       let officeName = "NAME OF OFFICE";
       let departmentName = "NAME OF DEPARTMENT";
@@ -220,13 +236,11 @@ const TbrReport = (() => {
       let finalHtml = `
         <div class="mb-10 relative" style="page-break-after: avoid;">
           <div class="absolute left-0 top-0 font-bold text-sm">File No: <span contenteditable="true" class="outline-none border-b border-dotted border-gray-600 inline-block w-40 font-normal focus:bg-yellow-100 cursor-text"></span></div>
-          <div class="absolute right-0 top-0 font-bold text-sm">Treasury: <span class="font-normal text-gray-800">${treasuryName}</span></div>
           <div class="text-center flex flex-col items-center">
             <h2 class="text-lg font-bold uppercase">RECONCILIATION STATEMENT OF</h2>
             <h3 class="text-md font-bold uppercase mt-1 text-gray-800">${officeName}</h3>
             <h4 class="text-sm font-bold uppercase text-gray-600">${departmentName}</h4>
             <div class="text-sm font-bold mt-2">for the month of <span class="underline">${month} ${finYear}</span></div>
-            <div class="text-sm font-bold mt-1 uppercase">NON-PLAN</div>
           </div>
         </div>
       `;
