@@ -1,6 +1,6 @@
 /**
  * api.js
- * Bulletproof Google Sheets API with Smart Merge (Type Error Fixed)
+ * Bulletproof Google Sheets API with Smart Merge (Checking by Spark Code)
  */
 const TbrApi = (() => {
   const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -31,7 +31,7 @@ const TbrApi = (() => {
     return TBR_CONFIG.SPREADSHEET_ID;
   }
 
-  // ഷീറ്റിന്റെ യഥാർത്ഥ പേര് തനിയെ കണ്ടുപിടിക്കാൻ (Bulletproof Feature)
+  // ഷീറ്റിന്റെ യഥാർത്ഥ പേര് തനിയെ കണ്ടുപിടിക്കാൻ
   async function _getActualSheetName(id) {
      const meta = await _request(`${BASE}/${id}?fields=sheets.properties`);
      if (meta && meta.sheets && meta.sheets.length > 0) {
@@ -64,7 +64,7 @@ const TbrApi = (() => {
 
     const sheetName = await _getActualSheetName(id);
 
-    // 1. നിർബന്ധമായും ആദ്യത്തെ വരിയിൽ ഹെഡിങ് എഴുതിച്ചേർക്കുന്നു
+    // 1. ഹെഡിങ് സെറ്റ് ചെയ്യുന്നു
     const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HEAD_OF_ACCOUNT", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
     const headerRange = encodeURIComponent(`${sheetName}!A1:W1`);
     await _request(`${BASE}/${id}/values/${headerRange}?valueInputOption=USER_ENTERED`, {
@@ -72,36 +72,36 @@ const TbrApi = (() => {
       body: JSON.stringify({ values: [headerRow] }),
     });
 
-    // 2. ആ മാസത്തെ പഴയ ഡാറ്റ ഷീറ്റിൽ നിന്നും എടുക്കുന്നു (Smart Merge Feature)
     const existingRows = await fetchRowsForPeriod(finYear, month);
     const newRows = dataRows.map(row => [finYear, month, ...row]);
     const mergedRows = [...existingRows];
 
     newRows.forEach(newRow => {
-      // നമ്പറുകളെ കൃത്യമായി String ആക്കി മാറ്റിയ ശേഷമാണ് trim ചെയ്യുന്നത് (Error പരിഹരിച്ചു)
-      const newBillNo = String(newRow[3] || "").trim(); 
+      // ഇവിടെയാണ് മാറ്റം വരുത്തിയത് (Bill No-ക്ക് പകരം Spark Code എടുക്കുന്നു)
+      // Spark Code-ന്റെ സ്ഥാനം 6 ആണ് (0 മുതൽ എണ്ണുമ്പോൾ)
+      const newSparkCode = String(newRow[6] || "").trim(); 
       const newGross = String(newRow[20] || "").trim(); 
       
       const existingIndex = mergedRows.findIndex(oldRow => {
-        const oldBillNo = String(oldRow[3] || "").trim();
+        const oldSparkCode = String(oldRow[6] || "").trim();
         const oldGross = String(oldRow[20] || "").trim();
         
-        if (newBillNo && newBillNo !== "—" && newBillNo === oldBillNo) return true;
-        if ((!newBillNo || newBillNo === "—") && newGross && newGross === oldGross) return true;
+        // Spark Code വെച്ച് ഒത്തുനോക്കുന്നു
+        if (newSparkCode && newSparkCode !== "—" && newSparkCode === oldSparkCode) return true;
+        // Spark Code ഇല്ലെങ്കിൽ Gross Amount വെച്ച് ഒത്തുനോക്കുന്നു
+        if ((!newSparkCode || newSparkCode === "—") && newGross && newGross === oldGross) return true;
         return false;
       });
 
       if (existingIndex >= 0) {
-        mergedRows[existingIndex] = newRow; 
+        mergedRows[existingIndex] = newRow; // അപ്ഡേറ്റ്
       } else {
-        mergedRows.push(newRow); 
+        mergedRows.push(newRow); // പുതിയത് ചേർക്കൽ
       }
     });
 
-    // 3. ആ മാസത്തെ പഴയ ഡാറ്റകൾ ഷീറ്റിൽ ഉണ്ടെങ്കിൽ അത് ഡിലീറ്റ് ചെയ്യുന്നു
     await _deleteRowsForPeriod(id, sheetName, finYear, month);
 
-    // 4. ഒന്നിപ്പിച്ച മുഴുവൻ ഡാറ്റയും രണ്ടാമത്തെ വരി മുതൽ സേവ് ചെയ്യുന്നു
     const appendRange = encodeURIComponent(`${sheetName}!A:Z`);
     await _request(`${BASE}/${id}/values/${appendRange}:append?valueInputOption=USER_ENTERED`, {
       method: "POST",
