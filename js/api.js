@@ -1,6 +1,6 @@
 /**
  * api.js
- * Bulletproof Google Sheets API with Smart Merge (No Data Loss & Safe Headers)
+ * Bulletproof Google Sheets API with Smart Merge (Type Error Fixed)
  */
 const TbrApi = (() => {
   const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -53,8 +53,8 @@ const TbrApi = (() => {
     if (!all || !Array.isArray(all)) return [];
     const C = TBR_CONFIG.COLUMNS;
     return all.filter(row =>
-      (row[C.FIN_YEAR] || "").trim() === (finYear || "").trim() &&
-      (row[C.MONTH] || "").trim() === (month || "").trim()
+      String(row[C.FIN_YEAR] || "").trim() === String(finYear || "").trim() &&
+      String(row[C.MONTH] || "").trim() === String(month || "").trim()
     );
   }
 
@@ -64,7 +64,7 @@ const TbrApi = (() => {
 
     const sheetName = await _getActualSheetName(id);
 
-    // 1. നിർബന്ധമായും ആദ്യത്തെ വരിയിൽ ഹെഡിങ് എഴുതിച്ചേർക്കുന്നു (Bulletproof Feature)
+    // 1. നിർബന്ധമായും ആദ്യത്തെ വരിയിൽ ഹെഡിങ് എഴുതിച്ചേർക്കുന്നു
     const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HEAD_OF_ACCOUNT", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
     const headerRange = encodeURIComponent(`${sheetName}!A1:W1`);
     await _request(`${BASE}/${id}/values/${headerRange}?valueInputOption=USER_ENTERED`, {
@@ -78,21 +78,23 @@ const TbrApi = (() => {
     const mergedRows = [...existingRows];
 
     newRows.forEach(newRow => {
-      const newBillNo = (newRow[3] || "").trim(); // BILL_NO (Index 3)
-      const newGross = (newRow[20] || "").trim(); // GROSS_AMOUNT (Index 20)
+      // നമ്പറുകളെ കൃത്യമായി String ആക്കി മാറ്റിയ ശേഷമാണ് trim ചെയ്യുന്നത് (Error പരിഹരിച്ചു)
+      const newBillNo = String(newRow[3] || "").trim(); 
+      const newGross = String(newRow[20] || "").trim(); 
       
       const existingIndex = mergedRows.findIndex(oldRow => {
-        const oldBillNo = (oldRow[3] || "").trim();
-        const oldGross = (oldRow[20] || "").trim();
+        const oldBillNo = String(oldRow[3] || "").trim();
+        const oldGross = String(oldRow[20] || "").trim();
+        
         if (newBillNo && newBillNo !== "—" && newBillNo === oldBillNo) return true;
         if ((!newBillNo || newBillNo === "—") && newGross && newGross === oldGross) return true;
         return false;
       });
 
       if (existingIndex >= 0) {
-        mergedRows[existingIndex] = newRow; // അപ്ഡേറ്റ്
+        mergedRows[existingIndex] = newRow; 
       } else {
-        mergedRows.push(newRow); // പുതിയത് ചേർക്കൽ
+        mergedRows.push(newRow); 
       }
     });
 
@@ -114,7 +116,7 @@ const TbrApi = (() => {
     const toDelete = [];
     
     for (let i = 1; i < rows.length; i++) {
-      if ((rows[i][0] || "").trim() === (finYear || "").trim() && (rows[i][1] || "").trim() === (month || "").trim()) {
+      if (String(rows[i][0] || "").trim() === String(finYear || "").trim() && String(rows[i][1] || "").trim() === String(month || "").trim()) {
         toDelete.push(i);
       }
     }
