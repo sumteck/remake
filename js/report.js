@@ -1,5 +1,5 @@
 /**
- * report.js (Bulletproof Multi-Table Auto-Generation with Error Tracking)
+ * report.js (Bulletproof Auto-Generation: Single Main Header & HOA only above tables)
  * =====================================
  */
 
@@ -39,7 +39,6 @@ const TbrReport = (() => {
     return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // ഐഡികൾ തെറ്റിയാലും തനിയെ കണ്ടുപിടിക്കാനുള്ള സംവിധാനം
   function _getSelectors() {
     return {
       fySelect: $("report-fin-year") || $("select-fin-year") || document.querySelector('select[id*="year"]'),
@@ -49,10 +48,7 @@ const TbrReport = (() => {
 
   function _populatePeriodSelectors() {
     const { fySelect, monthSelect } = _getSelectors();
-    if (!fySelect || !monthSelect) {
-      console.warn("Dropdowns for Year or Month not found in HTML!");
-      return;
-    }
+    if (!fySelect || !monthSelect) return;
 
     const now = new Date();
     const currentFY = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
@@ -90,21 +86,9 @@ const TbrReport = (() => {
   const _col = (row, colKey) => row[C[colKey]] || "";
   const _colNum = (row, colKey) => parseFloat(row[C[colKey]]) || 0;
 
-  function _buildReportBlock(finYear, month, rows, prevTotals, blockIndex) {
+  // ── ഓരോ ടേബിളും വരയ്ക്കുന്ന ഭാഗം (ഇപ്പോൾ Head of Account മാത്രം) ──
+  function _buildReportBlock(rows, prevTotals, blockIndex) {
     const hoa = _col(rows[0], "HOA") || "—";
-    const treasury = _col(rows[0], "TREASURY") || "—";
-    const fullDeptName = _col(rows[0], "DEPARTMENT") || "";
-    let officeName = "NAME OF OFFICE";
-    let departmentName = "NAME OF DEPARTMENT";
-
-    if (fullDeptName.includes("-")) {
-      const parts = fullDeptName.split("-");
-      departmentName = parts[0].trim();
-      officeName = parts[1].trim();
-    } else if (fullDeptName) {
-      officeName = fullDeptName;
-      departmentName = "";
-    }
 
     const totals = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
     const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
@@ -155,21 +139,10 @@ const TbrReport = (() => {
 
     return `
       <div class="mb-12" style="page-break-inside: avoid;">
-        <div class="mb-6 relative">
-          <div class="absolute left-0 top-0 font-bold text-sm">File No: <span contenteditable="true" class="outline-none border-b border-dotted border-gray-600 inline-block w-40 font-normal focus:bg-yellow-100 cursor-text"></span></div>
-          <div class="text-center flex flex-col items-center">
-            <h2 class="text-lg font-bold uppercase">RECONCILIATION STATEMENT OF</h2>
-            <h3 class="text-md font-bold uppercase mt-1 text-gray-800">${officeName}</h3>
-            <h4 class="text-sm font-bold uppercase text-gray-600">${departmentName}</h4>
-            <div class="text-sm font-bold mt-2">for the month of <span class="underline">${month} ${finYear}</span></div>
-          </div>
-          <div class="flex justify-between items-end mt-4">
-            <div class="font-bold text-sm flex-1 text-left">Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span></div>
-            <div class="font-bold text-sm flex-1 text-center uppercase">NON-PLAN</div>
-            <div class="font-bold text-sm flex-1 text-right">Treasury: <span class="font-normal text-gray-800">${treasury}</span></div>
-          </div>
-          <hr class="mt-2 border-gray-800 border-t-2">
+        <div class="mb-2 font-bold text-sm text-left">
+          Head of Account: <span class="ml-1 border-b border-dotted border-gray-400 inline-block min-w-[200px]">${hoa}</span>
         </div>
+        <hr class="mb-4 border-gray-800 border-t-2">
         <table class="w-full text-[10px] md:text-[11px] border-collapse border border-black bg-white">
           <thead>
             <tr class="bg-gray-100 font-bold text-black uppercase text-center">
@@ -198,10 +171,7 @@ const TbrReport = (() => {
       }
 
       const container = $("dynamic-reports-container");
-      if (!container) {
-        toast("Error: 'dynamic-reports-container' is missing in HTML. Check report.html", "error");
-        return;
-      }
+      if (!container) return;
 
       setLoading(true, `Fetching data for ${month} ${finYear}…`);
 
@@ -214,7 +184,6 @@ const TbrReport = (() => {
         container.innerHTML = `<div class="text-center py-10 font-bold text-red-500">No data found in Google Sheets for ${month} ${finYear}.</div>`;
         const reportSection = $("report-content");
         if (reportSection) show(reportSection);
-        toast(`No data found for ${month} ${finYear}.`, "warning");
         setLoading(false);
         return;
       }
@@ -232,9 +201,37 @@ const TbrReport = (() => {
 
       const prevRows = allRows.filter(r => String(r[C.FIN_YEAR]).trim() === finYear && prevMonths.includes(String(r[C.MONTH]).trim()));
 
-      const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
+      // ── മെയിൻ ഹെഡിങ് (ഇപ്പോൾ Treasury യും NON-PLAN ഉം ഇതിലുണ്ട്) ──
+      const firstRow = currentRows[0];
+      const treasuryName = _col(firstRow, "TREASURY") || "—";
+      const fullDeptName = _col(firstRow, "DEPARTMENT") || "";
+      let officeName = "NAME OF OFFICE";
+      let departmentName = "NAME OF DEPARTMENT";
 
-      let finalHtml = "";
+      if (fullDeptName.includes("-")) {
+        const parts = fullDeptName.split("-");
+        departmentName = parts[0].trim();
+        officeName = parts[1].trim();
+      } else if (fullDeptName) {
+        officeName = fullDeptName;
+        departmentName = "";
+      }
+
+      let finalHtml = `
+        <div class="mb-10 relative" style="page-break-after: avoid;">
+          <div class="absolute left-0 top-0 font-bold text-sm">File No: <span contenteditable="true" class="outline-none border-b border-dotted border-gray-600 inline-block w-40 font-normal focus:bg-yellow-100 cursor-text"></span></div>
+          <div class="absolute right-0 top-0 font-bold text-sm">Treasury: <span class="font-normal text-gray-800">${treasuryName}</span></div>
+          <div class="text-center flex flex-col items-center">
+            <h2 class="text-lg font-bold uppercase">RECONCILIATION STATEMENT OF</h2>
+            <h3 class="text-md font-bold uppercase mt-1 text-gray-800">${officeName}</h3>
+            <h4 class="text-sm font-bold uppercase text-gray-600">${departmentName}</h4>
+            <div class="text-sm font-bold mt-2">for the month of <span class="underline">${month} ${finYear}</span></div>
+            <div class="text-sm font-bold mt-1 uppercase">NON-PLAN</div>
+          </div>
+        </div>
+      `;
+
+      const colMap = { grossAmount: "GROSS_AMOUNT", pay: "PAY", da: "DA", hra: "HRA", cca: "CCA", pgAllowance: "PG_ALLOWANCE", ruralAllowance: "RURAL_ALLOWANCE", otherAllowance: "OTHER_ALLOWANCE", consolidatePay: "CONSOLIDATE_PAY", dailyWages: "DAILY_WAGES", ms: "MS", tourTa: "TOUR_TA", mr: "MR" };
       let blockIndex = 0;
 
       const grandTotalsCur = { grossAmount: 0, pay: 0, da: 0, hra: 0, cca: 0, pgAllowance: 0, ruralAllowance: 0, otherAllowance: 0, consolidatePay: 0, dailyWages: 0, ms: 0, tourTa: 0, mr: 0 };
@@ -251,7 +248,7 @@ const TbrReport = (() => {
 
         Object.keys(grandTotalsPrev).forEach(k => { grandTotalsPrev[k] += prevTotals[k]; });
 
-        finalHtml += _buildReportBlock(finYear, month, rowsForHoa, prevTotals, blockIndex);
+        finalHtml += _buildReportBlock(rowsForHoa, prevTotals, blockIndex);
         blockIndex++;
       }
 
@@ -286,7 +283,7 @@ const TbrReport = (() => {
       container.innerHTML = finalHtml;
       const reportSection = $("report-content");
       if (reportSection) show(reportSection);
-      toast(`Report & Consolidated Statement generated successfully!`, "success");
+      toast(`Report generated successfully!`, "success");
 
     } catch (err) {
       console.error(err);
@@ -299,13 +296,8 @@ const TbrReport = (() => {
   function init() {
     _populatePeriodSelectors();
     
-    // ഐഡികൾ തനിയെ കണ്ടുപിടിക്കാനുള്ള സംവിധാനം ചേർത്തു
     const btn = $("generate-report-btn") || document.querySelector('button[id*="generate"]');
-    if (btn) {
-      btn.addEventListener("click", _generateReport);
-    } else {
-      setTimeout(() => toast("Warning: Generate Report button missing in HTML!", "error"), 2000);
-    }
+    if (btn) btn.addEventListener("click", _generateReport);
     
     const printBtn = $("print-report-btn") || document.querySelector('button[id*="print"]');
     if (printBtn) printBtn.addEventListener("click", () => window.print());
