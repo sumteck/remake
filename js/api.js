@@ -1,9 +1,10 @@
 /**
  * api.js
- * Bulletproof Google Sheets API with Smart Merge & Targeted Single Delete
+ * Bulletproof Google Sheets & Drive API with Auto-Create Spreadsheet Feature
  */
 const TbrApi = (() => {
-  "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file"
+  const BASE = "https://sheets.googleapis.com/v4/spreadsheets";
+  const DRIVE_BASE = "https://www.googleapis.com/drive/v3/files";
 
   async function _request(url, options = {}, retries = 3) {
     const token = TbrAuth.getToken();
@@ -23,12 +24,50 @@ const TbrApi = (() => {
         continue;
       }
       const err = await resp.json().catch(() => ({}));
-      throw new Error(`Sheets API error: ${err?.error?.message || resp.statusText}`);
+      throw new Error(`API error: ${err?.error?.message || resp.statusText}`);
     }
   }
 
+  // ഡൈനാമിക് ആയി ഗൂഗിൾ ഡ്രൈവിൽ ഷീറ്റ് കണ്ടുപിടിക്കാനും ഉണ്ടാക്കാനും ഉള്ള ഭാഗം
   async function ensureSpreadsheet() {
-    return TBR_CONFIG.SPREADSHEET_ID;
+    // ഷീറ്റ് ഐഡി ഓൾറെഡി കിട്ടിയിട്ടുണ്ടെങ്കിൽ അത് തന്നെ ഉപയോഗിക്കാം
+    if (TBR_CONFIG.SPREADSHEET_ID && TBR_CONFIG.SPREADSHEET_ID.length > 20) {
+      return TBR_CONFIG.SPREADSHEET_ID;
+    }
+
+    try {
+      // 1. ലോഗിൻ ചെയ്ത ആളുടെ ഗൂഗിൾ ഡ്രൈവിൽ 'Remake_App_Data' എന്ന ഷീറ്റ് ഉണ്ടോ എന്ന് നോക്കുന്നു
+      const query = encodeURIComponent("name='Remake_App_Data' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
+      const searchUrl = `${DRIVE_BASE}?q=${query}&fields=files(id,name)`;
+      
+      const searchData = await _request(searchUrl);
+      
+      if (searchData && searchData.files && searchData.files.length > 0) {
+        // ഷീറ്റ് ഉണ്ടെങ്കിൽ അതിന്റെ ഐഡി ഉപയോഗിക്കുന്നു
+        TBR_CONFIG.SPREADSHEET_ID = searchData.files[0].id;
+        console.log("Existing sheet found in Drive:", TBR_CONFIG.SPREADSHEET_ID);
+        return TBR_CONFIG.SPREADSHEET_ID;
+      }
+
+      // 2. ഷീറ്റ് ഇല്ലെങ്കിൽ അവരുടെ ഡ്രൈവിൽ പുതിയതൊന്ന് ഉണ്ടാക്കുന്നു
+      console.log("Sheet not found. Creating a new one...");
+      const createBody = {
+        properties: { title: "Remake_App_Data" }
+      };
+      
+      const createData = await _request(BASE, {
+        method: "POST",
+        body: JSON.stringify(createBody)
+      });
+      
+      TBR_CONFIG.SPREADSHEET_ID = createData.spreadsheetId;
+      console.log("New sheet created in Drive:", TBR_CONFIG.SPREADSHEET_ID);
+      return TBR_CONFIG.SPREADSHEET_ID;
+      
+    } catch (err) {
+      console.error("Error creating/finding spreadsheet:", err);
+      throw err;
+    }
   }
 
   async function _getActualSheetName(id) {
@@ -57,13 +96,14 @@ const TbrApi = (() => {
     );
   }
 
-  // SMART MERGE: ഡാറ്റ സുരക്ഷിതമായി സേവ് ചെയ്യാൻ 
+  // സ്മാർട്ട് മെർജ് ഡാറ്റ സേവിങ്
   async function savePeriodData(finYear, month, dataRows) {
     const id = await ensureSpreadsheet();
     if (!dataRows || dataRows.length === 0) return;
 
     const sheetName = await _getActualSheetName(id);
 
+    // ഹെഡിങ്ങുകൾ ഷീറ്റിലേക്ക് കൊടുക്കുന്നു (പുതിയ ഷീറ്റാണെങ്കിൽ ഇത് ഉപകരിക്കും)
     const headerRow = ["FIN_YEAR", "MONTH", "BILL_TYPE", "BILL_NO", "TREASURY", "HEAD_OF_ACCOUNT", "SPARK_CODE", "DEPARTMENT", "PAY", "DA", "HRA", "CCA", "PG_ALLOWANCE", "RURAL_ALLOWANCE", "OTHER_ALLOWANCE", "CONSOLIDATE_PAY", "DAILY_WAGES", "MS", "TOUR_TA", "MR", "GROSS_AMOUNT", "ENCASH_DATE", "REMARKS"];
     const headerRange = encodeURIComponent(`${sheetName}!A1:W1`);
     await _request(`${BASE}/${id}/values/${headerRange}?valueInputOption=USER_ENTERED`, {
@@ -103,7 +143,6 @@ const TbrApi = (() => {
     });
   }
 
-  // TARGETED DELETE: സ്ക്രീനിൽ നിന്ന് ഡിലീറ്റ് ചെയ്യുന്ന വരി മാത്രം ഷീറ്റിൽ നിന്നും കളയാൻ
   async function deleteSingleBill(finYear, month, sparkCode, grossAmount) {
     const id = await ensureSpreadsheet();
     const sheetName = await _getActualSheetName(id);
