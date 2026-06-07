@@ -149,6 +149,79 @@
     .marquee-item { transition: transform 0.2s; }
     .marquee-item:hover { transform: scale(1.15); }
   </style>
+  <style>
+  /* ബട്ടൺ അടിസ്ഥാന ഡിസൈൻ */
+  .indian-flag-btn {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+  }
+  
+  .indian-flag-btn .btn-text {
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s ease;
+  }
+
+  /* ഇന്ത്യൻ പതാകയുടെ കളറുകൾ */
+  .indian-flag-btn::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(to bottom, #FF9933 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #138808 66.66%);
+    opacity: 0;
+    z-index: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  /* അശോകചക്രം (SVG ഡിസൈൻ) */
+  .indian-flag-btn::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    margin-top: -13px;
+    margin-left: -13px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="%23000080" stroke-width="6"/><circle cx="50" cy="50" r="10" fill="%23000080"/><g stroke="%23000080" stroke-width="4"><line x1="50" y1="50" x2="50" y2="4"/><line x1="50" y1="50" x2="50" y2="96"/><line x1="50" y1="50" x2="4" y2="50"/><line x1="50" y1="50" x2="96" y2="50"/><line x1="50" y1="50" x2="17.5" y2="17.5"/><line x1="50" y1="50" x2="82.5" y2="82.5"/><line x1="50" y1="50" x2="17.5" y2="82.5"/><line x1="50" y1="50" x2="82.5" y2="17.5"/><line x1="50" y1="50" x2="32.6" y2="8.4"/><line x1="50" y1="50" x2="67.4" y2="91.6"/><line x1="50" y1="50" x2="8.4" y2="32.6"/><line x1="50" y1="50" x2="91.6" y2="67.4"/><line x1="50" y1="50" x2="8.4" y2="67.4"/><line x1="50" y1="50" x2="91.6" y2="32.6"/><line x1="50" y1="50" x2="32.6" y2="91.6"/><line x1="50" y1="50" x2="67.4" y2="8.4"/></g></svg>') no-repeat center center;
+    background-size: contain;
+    opacity: 0;
+    z-index: 1;
+    transition: opacity 0.4s ease;
+  }
+
+  /* മൗസ് വെക്കുമ്പോൾ (Hover) വരുന്ന മാറ്റങ്ങൾ */
+  .indian-flag-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  
+  .indian-flag-btn:hover::before {
+    opacity: 1;
+  }
+  
+  .indian-flag-btn:hover::after {
+    opacity: 0.8;
+    animation: spin-chakra 3s linear infinite; /* ചക്രം കറങ്ങാൻ */
+  }
+  
+  .indian-flag-btn:hover .btn-text {
+    color: #000080; /* എഴുത്ത് കടും നീലയാകും */
+    /* പതാകയുടെ മുകളിൽ എഴുത്ത് വ്യക്തമായി കാണാൻ ചെറിയൊരു വെള്ള ഔട്ട്‌ലൈൻ */
+    text-shadow: 2px 2px 0px #fff, -2px -2px 0px #fff, 2px -2px 0px #fff, -2px 2px 0px #fff, 0px 2px 0px #fff, 0px -2px 0px #fff, 2px 0px 0px #fff, -2px 0px 0px #fff; 
+  }
+
+  /* ചക്രം കറങ്ങാനുള്ള അനിമേഷൻ */
+  @keyframes spin-chakra {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+</style>
+
 </head>
 <body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col">
 
@@ -172,17 +245,22 @@
             <img src="https://raw.githubusercontent.com/sumteck/remake/main/logo.png" alt="Remake Logo" class="h-9 border border-black rounded-xl bg-white">
           </div>
         </div>
-        <nav class="hidden md:flex items-center gap-gutter">
-          <a href="index.html" class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md">Dashboard</a>
-          <a href="report.html" class="text-primary font-semibold border-b-2 border-primary pb-1 font-body-md text-body-md">Reports</a>
-        </nav>
+        <nav class="hidden md:flex items-center gap-4">
+  <a href="index.html" class="indian-flag-btn bg-blue-600 w-[140px] py-2.5 rounded-lg shadow-sm">
+    <span class="btn-text text-white font-bold tracking-wide">Dashboard</span>
+  </a>
+
+  <a href="report.html" class="indian-flag-btn bg-sky-500 w-[140px] py-2.5 rounded-lg shadow-sm">
+    <span class="btn-text text-white font-bold tracking-wide">Reports</span>
+  </a>
+</nav>
       </div>
 
       <div class="absolute left-1/2 transform -translate-x-1/2 w-full max-w-md hidden md:block">
         <div class="gemini-search-wrapper">
           <div class="flex items-center px-4 py-1 rounded-2xl bg-white transition-all duration-300">
             <span class="material-symbols-outlined text-outline mr-2 text-[18px]">search</span>
-            <input class="bg-transparent border-none focus:ring-0 w-full text-body-sm font-body-sm placeholder:text-outline-variant outline-none" placeholder="Ask anything" type="text"/>
+            <input id="bill-search" class="bg-transparent border-none focus:ring-0 w-full text-body-sm font-body-sm placeholder:text-outline-variant outline-none" placeholder="Ask anything" type="text" />
             <span class="material-symbols-outlined text-primary cursor-pointer text-[18px]">auto_awesome</span>
           </div>
         </div>
@@ -338,5 +416,58 @@
       }
     });
   </script>
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const searchBox = document.getElementById("bill-search");
+    
+    if(searchBox) {
+      searchBox.addEventListener("input", function() {
+        const filterText = searchBox.value.toLowerCase().trim();
+        
+        // 1. ടേബിളിലെ ഹെഡിങ്ങുകൾ നോക്കി Bill No, Encash Date എന്നിവയുടെ സ്ഥാനം (Column Index) കണ്ടുപിടിക്കുന്നു
+        let billColIdx = -1;
+        let dateColIdx = -1;
+        
+        const headers = document.querySelectorAll("thead th");
+        headers.forEach((th, index) => {
+          const headerText = th.textContent.toLowerCase();
+          if (headerText.includes("bill no") || headerText.includes("bill")) {
+            billColIdx = index;
+          }
+          if (headerText.includes("encash date") || headerText.includes("date") || headerText.includes("cashed")) {
+            dateColIdx = index;
+          }
+        });
+
+        // 2. വരികൾ ഫിൽറ്റർ ചെയ്യുന്നു
+        const rows = document.querySelectorAll("tbody tr");
+        
+        rows.forEach(row => {
+          const cells = row.querySelectorAll("td");
+          
+          if (cells.length > 0) {
+            let billNo = "";
+            let encashDate = "";
+            
+            // കണ്ടുപിടിച്ച കോളം നമ്പറിലുള്ള ഡാറ്റ മാത്രം എടുക്കുന്നു
+            if (billColIdx !== -1 && cells[billColIdx]) {
+              billNo = cells[billColIdx].textContent.toLowerCase();
+            }
+            if (dateColIdx !== -1 && cells[dateColIdx]) {
+              encashDate = cells[dateColIdx].textContent.toLowerCase();
+            }
+            
+            // ടൈപ്പ് ചെയ്ത വാക്ക് Bill No-ലോ Encash Date-ലോ ഉണ്ടെങ്കിൽ കാണിക്കുക
+            if(filterText === "" || billNo.includes(filterText) || encashDate.includes(filterText)) {
+              row.style.display = "";
+            } else {
+              row.style.display = "none";
+            }
+          }
+        });
+      });
+    }
+  });
+</script>
 </body>
 </html>
